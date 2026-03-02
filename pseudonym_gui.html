@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pseudonymisierung — MedUni Wien</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root { --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --text: #1e293b; --text2: #64748b;
+  --border: #e2e8f0; --accent: #2563eb; --accent2: #1d4ed8; --green: #16a34a; --green-bg: #dcfce7;
+  --red: #dc2626; --red-bg: #fef2f2; --orange: #ea580c; --orange-bg: #fff7ed; --shadow: 0 1px 3px rgba(0,0,0,.1); }
+.dark { --bg: #0f172a; --bg2: #1e293b; --bg3: #334155; --text: #f1f5f9; --text2: #94a3b8;
+  --border: #475569; --accent: #3b82f6; --accent2: #60a5fa; --green: #4ade80; --green-bg: #052e16;
+  --red: #f87171; --red-bg: #450a0a; --orange: #fb923c; --orange-bg: #431407; --shadow: 0 1px 3px rgba(0,0,0,.4); }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh; transition: background .2s, color .2s; }
+.container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+
+/* Header */
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: .75rem; }
+.header h1 { font-size: 1.5rem; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.badge { display: inline-flex; align-items: center; gap: .35rem; background: var(--green-bg); color: var(--green);
+  padding: .25rem .65rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
+.header-right { display: flex; align-items: center; gap: .75rem; }
+
+/* Dark mode toggle */
+.dm-toggle { background: var(--bg3); border: 1px solid var(--border); border-radius: 9999px;
+  width: 3rem; height: 1.65rem; position: relative; cursor: pointer; transition: background .2s; }
+.dm-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 1.15rem; height: 1.15rem;
+  background: var(--accent); border-radius: 50%; transition: transform .2s; }
+.dark .dm-toggle::after { transform: translateX(1.35rem); }
+
+/* Cards */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: .75rem;
+  padding: 1.25rem; box-shadow: var(--shadow); margin-bottom: 1rem; }
+.card-title { font-size: .85rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text2); margin-bottom: .75rem; }
+
+/* Drop zone */
+.dropzone { border: 2px dashed var(--border); border-radius: .75rem; padding: 2.5rem 1rem;
+  text-align: center; cursor: pointer; transition: border-color .2s, background .2s; }
+.dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.dropzone.has-file { border-color: var(--green); background: var(--green-bg); }
+.dropzone-icon { font-size: 2.5rem; margin-bottom: .5rem; }
+.dropzone-text { font-size: .95rem; color: var(--text2); }
+.dropzone-file { font-size: 1rem; font-weight: 600; color: var(--green); }
+
+/* Inputs */
+.input-row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; }
+.input-group { flex: 1; min-width: 200px; }
+.input-group label { display: block; font-size: .8rem; font-weight: 600; color: var(--text2); margin-bottom: .35rem; }
+.input-wrap { position: relative; }
+.input-wrap input { width: 100%; padding: .6rem .75rem; padding-right: 2.5rem; border: 1px solid var(--border);
+  border-radius: .5rem; background: var(--bg); color: var(--text); font-size: .95rem; outline: none; transition: border-color .2s; }
+.input-wrap input:focus { border-color: var(--accent); }
+.eye-btn { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text2); cursor: pointer; font-size: 1.1rem; padding: .25rem; }
+
+/* Mode toggle */
+.mode-toggle { display: flex; background: var(--bg3); border-radius: .5rem; overflow: hidden; border: 1px solid var(--border); }
+.mode-btn { flex: 1; padding: .6rem 1.25rem; border: none; background: transparent; color: var(--text2);
+  font-weight: 600; font-size: .9rem; cursor: pointer; transition: all .2s; white-space: nowrap; }
+.mode-btn.active-enc { background: var(--accent); color: #fff; }
+.mode-btn.active-dec { background: var(--green); color: #fff; }
+
+/* Action button */
+.action-btn { padding: .7rem 2rem; border: none; border-radius: .5rem; font-size: 1rem; font-weight: 700;
+  cursor: pointer; transition: all .2s; color: #fff; }
+.action-btn.encrypt { background: var(--accent); }
+.action-btn.encrypt:hover { background: var(--accent2); }
+.action-btn.decrypt { background: var(--green); }
+.action-btn.decrypt:hover { background: #15803d; }
+.action-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Progress */
+.progress-bar { width: 100%; height: .4rem; background: var(--bg3); border-radius: 9999px; overflow: hidden; margin: .75rem 0; display: none; }
+.progress-bar.active { display: block; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 9999px; transition: width .15s; width: 0; }
+
+/* Preview table */
+.table-wrap { overflow-x: auto; max-height: 400px; overflow-y: auto; border-radius: .5rem; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+th, td { padding: .45rem .65rem; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+th { background: var(--bg3); font-weight: 600; position: sticky; top: 0; z-index: 1; color: var(--text2); }
+td.id-col { background: color-mix(in srgb, var(--accent) 8%, transparent); font-weight: 500; }
+th.id-col { background: var(--accent); color: #fff; }
+td.changed { background: var(--orange-bg); }
+
+/* Sheet tabs */
+.sheet-tabs { display: flex; gap: .25rem; margin-bottom: .5rem; flex-wrap: wrap; }
+.sheet-tab { padding: .35rem .85rem; border-radius: .4rem .4rem 0 0; border: 1px solid var(--border); border-bottom: none;
+  background: var(--bg3); color: var(--text2); cursor: pointer; font-size: .8rem; font-weight: 500; transition: all .15s; }
+.sheet-tab.active { background: var(--bg2); color: var(--accent); font-weight: 700; border-bottom: 2px solid var(--accent); }
+
+/* Log */
+.log { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: .78rem; background: var(--bg3);
+  border-radius: .5rem; padding: .75rem 1rem; max-height: 200px; overflow-y: auto; line-height: 1.6; white-space: pre-wrap; }
+.log .ok { color: var(--green); } .log .warn { color: var(--orange); } .log .err { color: var(--red); }
+
+/* Stats */
+.stats { display: flex; gap: 1rem; flex-wrap: wrap; }
+.stat { flex: 1; min-width: 120px; background: var(--bg3); border-radius: .5rem; padding: .75rem; text-align: center; }
+.stat-num { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: .75rem; color: var(--text2); }
+
+/* Compare tabs */
+.compare-tabs { display: flex; gap: .25rem; margin-bottom: .75rem; }
+.compare-tab { padding: .45rem 1.25rem; border-radius: .5rem; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); cursor: pointer; font-size: .82rem; font-weight: 600; transition: all .15s; }
+.compare-tab.active-orig { background: var(--accent); color: #fff; border-color: var(--accent); }
+.compare-tab.active-result { background: var(--green); color: #fff; border-color: var(--green); }
+.compare-hint { font-size: .75rem; color: var(--text2); margin-left: .5rem; align-self: center; }
+
+/* History */
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: .5rem 0;
+  border-bottom: 1px solid var(--border); font-size: .82rem; }
+.history-item:last-child { border-bottom: none; }
+.hist-file { font-weight: 600; }
+.hist-mode { font-size: .72rem; padding: .15rem .5rem; border-radius: 9999px; font-weight: 600; }
+.hist-mode.enc { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+.hist-mode.dec { background: var(--green-bg); color: var(--green); }
+.hist-time { color: var(--text2); font-size: .75rem; }
+
+/* Info tooltip */
+.info-btn { background: var(--bg3); border: 1px solid var(--border); border-radius: 50%;
+  width: 1.5rem; height: 1.5rem; font-size: .75rem; font-weight: 700; cursor: pointer;
+  color: var(--text2); display: inline-flex; align-items: center; justify-content: center; }
+.info-popup { display: none; position: absolute; top: 100%; left: 0; z-index: 10; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: .5rem; padding: 1rem; box-shadow: var(--shadow);
+  width: max-content; max-width: 400px; font-size: .78rem; margin-top: .35rem; }
+.info-popup.show { display: block; }
+.info-popup table { font-size: .75rem; }
+.info-popup th, .info-popup td { padding: .25rem .5rem; }
+
+/* Download button */
+.dl-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .6rem 1.5rem; border: none;
+  border-radius: .5rem; font-size: .95rem; font-weight: 700; cursor: pointer; color: #fff;
+  background: var(--green); transition: background .2s; }
+.dl-btn:hover { background: #15803d; }
+
+/* Separator */
+.sep-group { min-width: 80px; flex: 0; }
+.sep-group select { width: 100%; padding: .6rem .75rem; border: 1px solid var(--border);
+  border-radius: .5rem; background: var(--bg); color: var(--text); font-size: .95rem; outline: none; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1><span>Pseudonymisierung</span> Tool</h1>
+      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.1.0 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
+    </div>
+    <div class="header-right">
+      <div class="badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Lokal &amp; sicher</div>
+      <div class="dm-toggle" id="dmToggle" title="Dark Mode"></div>
+    </div>
+  </div>
+
+  <!-- Drop Zone + Settings -->
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon" id="dzIcon">&#128196;</div>
+      <div id="dzText" class="dropzone-text">CSV oder XLSX hierher ziehen — oder klicken</div>
+    </div>
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.tsv,.txt" style="display:none">
+  </div>
+
+  <div class="card">
+    <div class="input-row">
+      <div class="input-group">
+        <label>Secret (Passwort)</label>
+        <div class="input-wrap">
+          <input type="password" id="secretInput" placeholder="Geheimer Schluessel eingeben...">
+          <button class="eye-btn" id="eyeBtn" title="Anzeigen/Verbergen">&#128065;</button>
+        </div>
+      </div>
+      <div class="sep-group" id="sepGroup">
+        <label>Separator</label>
+        <select id="sepSelect"><option value=",">Komma (,)</option><option value=";">Semikolon (;)</option><option value="\t">Tab</option></select>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:flex-end;">
+        <div class="mode-toggle">
+          <button class="mode-btn active-enc" id="btnEnc" onclick="setMode('encrypt')">Encrypt</button>
+          <button class="mode-btn" id="btnDec" onclick="setMode('decrypt')">Decrypt</button>
+        </div>
+        <div style="position:relative;display:inline-block;">
+          <button class="info-btn" id="infoBtn">?</button>
+          <div class="info-popup" id="infoPopup">
+            <strong>Erkannte Identitaetsspalten (case-insensitive):</strong>
+            <table style="margin-top:.5rem;">
+              <tr><th>Typ</th><th>Spaltennamen</th></tr>
+              <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT</td></tr>
+              <tr><td>Vorname</td><td>VORNAME, FirstName, FIRST_NAME_OF_STUDENT</td></tr>
+              <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, REGISTRATION_NUMBER</td></tr>
+              <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, Email, Mail</td></tr>
+              <tr><td>Pruefer</td><td>Examiner, Pruefer, Prüfer</td></tr>
+              <tr><td>Name</td><td>NAME — auto-composite aus Familienname + Vorname</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:.75rem;display:flex;align-items:center;gap:.75rem;">
+      <button class="action-btn encrypt" id="actionBtn" disabled onclick="processFile()">Pseudonymisieren</button>
+      <span id="actionHint" style="font-size:.8rem;color:var(--text2);"></span>
+    </div>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <!-- Preview -->
+  <div class="card hidden" id="previewCard">
+    <div class="card-title">Dateivorschau <span id="previewInfo" style="font-weight:400;"></span></div>
+    <div class="sheet-tabs" id="sheetTabs"></div>
+    <div class="table-wrap" id="previewTable"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="card hidden" id="resultCard">
+    <div class="card-title">Ergebnis</div>
+    <div class="stats" id="statsRow"></div>
+    <div style="margin-top:.75rem;">
+      <button class="dl-btn" id="dlBtn" onclick="downloadResult()">&#11015; Herunterladen</button>
+      <span id="dlName" style="margin-left:.5rem;font-size:.85rem;color:var(--text2);"></span>
+    </div>
+  </div>
+
+  <!-- Compare -->
+  <div class="card hidden" id="compareCard">
+    <div class="card-title">Vorher / Nachher</div>
+    <div class="compare-tabs">
+      <div class="compare-tab active-orig" id="cmpTabOrig" onclick="switchCompare('orig')">Original</div>
+      <div class="compare-tab" id="cmpTabResult" onclick="switchCompare('result')">Pseudonymisiert</div>
+      <span class="compare-hint" id="cmpHint">Identitaetsspalten hervorgehoben</span>
+    </div>
+    <div class="table-wrap" id="compareTable"></div>
+  </div>
+
+  <!-- Log -->
+  <div class="card hidden" id="logCard">
+    <div class="card-title">Protokoll</div>
+    <div class="log" id="logArea"></div>
+  </div>
+
+  <!-- History -->
+  <div class="card" id="historyCard">
+    <div class="card-title">Verlauf</div>
+    <div id="historyList"><span style="font-size:.82rem;color:var(--text2);">Noch keine Verarbeitungen.</span></div>
+  </div>
+</div>
+
+<script>
+// ================= STATE =================
+let currentMode = 'encrypt';
+let fileData = null;       // { name, type:'csv'|'xlsx', raw:ArrayBuffer }
+let parsedData = null;     // { sheets: [{name, headers, rows}] }
+let resultBlob = null;
+let resultName = '';
+let activeSheet = 0;
+let compareView = 'orig'; // 'orig' or 'result'
+let lastResultSheets = null;
+
+// ================= COLUMN ALIASES (identical to pseudonym.py) =================
+const COLUMN_ALIASES = {
+  familienname: ["FAMILIENNAME","Familienname","familienname","Zuname","zuname","ZUNAME",
+    "Nachname","nachname","NACHNAME","Last Name","LastName",
+    "FAMILY_NAME_OF_STUDENT","Family_Name_of_Student"],
+  vorname: ["VORNAME","Vorname","vorname","First Name","FirstName","Firstname",
+    "FIRST_NAME_OF_STUDENT","First_Name_of_Student"],
+  matnr: ["MATRIKELNUMMER","Matrikelnummer","matrikelnummer","Matnr","matnr","MATNR",
+    "MatrNr","Matrikel","matrikel","MATRIKEL","StudentID","Student_ID",
+    "REGISTRATION_NUMBER","Registration_Number","Registration Number"],
+  email: ["EMAIL_ADDRESS","Email_Address","E-Mail","E-MAIL","e-mail","Email","email",
+    "EMAIL","Mail","MAIL","mail","E_MAIL","EmailAddress","email_address"],
+  pruefer: ["Examiner","EXAMINER","examiner","Prüfer","PRÜFER","prüfer",
+    "Pruefer","PRUEFER","pruefer","Prufer","PRUFER"]
+};
+const NAME_ALIASES = ["NAME","Name","name"];
+
+function findIdentityCols(headers) {
+  const lower = {};
+  headers.forEach(h => { if (h) lower[h.trim().toLowerCase()] = h; });
+  const found = {};
+  for (const [canon, aliases] of Object.entries(COLUMN_ALIASES)) {
+    for (const a of aliases) {
+      if (a.toLowerCase() in lower) { found[canon] = lower[a.toLowerCase()]; break; }
+    }
+  }
+  return found;
+}
+function findNameCol(headers) {
+  const lower = {};
+  headers.forEach(h => { if (h) lower[h.trim().toLowerCase()] = h; });
+  for (const a of NAME_ALIASES) {
+    if (a.toLowerCase() in lower) return lower[a.toLowerCase()];
+  }
+  return null;
+}
+
+// ================= CRYPTO (Web Crypto API — identical to pseudonym.py) =================
+const SALT = new TextEncoder().encode('MedUniWien-Pseudo-Salt');
+const PBKDF2_ITERATIONS = 100000;
+
+async function deriveKey(secret) {
+  const raw = new TextEncoder().encode(secret);
+  const baseKey = await crypto.subtle.importKey('raw', raw, 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: SALT, iterations: PBKDF2_ITERATIONS }, baseKey, 256);
+  return new Uint8Array(bits);
+}
+
+async function hmacSha256(key, data) {
+  const hmacKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', hmacKey, new TextEncoder().encode(data));
+  return new Uint8Array(sig);
+}
+
+function pkcs7Pad(data) {
+  const padLen = 16 - (data.length % 16);
+  const padded = new Uint8Array(data.length + padLen);
+  padded.set(data);
+  padded.fill(padLen, data.length);
+  return padded;
+}
+function pkcs7Unpad(data) {
+  const padLen = data[data.length - 1];
+  if (padLen < 1 || padLen > 16) throw new Error('Invalid padding');
+  return data.slice(0, data.length - padLen);
+}
+
+function b64urlEncode(buf) {
+  let s = '';
+  for (const b of buf) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecode(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf;
+}
+
+async function encryptValue(keyBytes, plaintext) {
+  if (!plaintext) return plaintext;
+  const iv = (await hmacSha256(keyBytes, plaintext)).slice(0, 16);
+  const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt']);
+  // Web Crypto adds PKCS7 padding automatically
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, aesKey, new TextEncoder().encode(plaintext)));
+  const raw = new Uint8Array(iv.length + ct.length);
+  raw.set(iv); raw.set(ct, iv.length);
+  return b64urlEncode(raw);
+}
+
+async function decryptValue(keyBytes, token) {
+  if (!token) return token;
+  let raw;
+  try { raw = b64urlDecode(token); } catch { return token; }
+  if (raw.length < 32) return token;
+  const iv = raw.slice(0, 16);
+  const ct = raw.slice(16);
+  try {
+    const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
+    const dec = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ct));
+    return new TextDecoder().decode(dec);
+  } catch { return token; }
+}
+
+// ================= FILE HANDLING =================
+
+function handleFile(file) {
+  fileData = { name: file.name, type: file.name.match(/\.xlsx$/i) ? 'xlsx' : 'csv', raw: null };
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    fileData.raw = e.target.result;
+    parseFile();
+    updateDropzoneUI();
+    updateActionState();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseFile() {
+  if (fileData.type === 'xlsx') {
+    const wb = XLSX.read(fileData.raw, { type: 'array' });
+    parsedData = { sheets: wb.SheetNames.map(name => {
+      const ws = wb.Sheets[name];
+      const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (json.length === 0) return { name, headers: [], rows: [] };
+      return { name, headers: json[0].map(String), rows: json.slice(1).map(r => r.map(c => c == null ? '' : String(c))) };
+    })};
+    document.getElementById('sepGroup').classList.add('hidden');
+  } else {
+    const text = new TextDecoder('utf-8').decode(fileData.raw);
+    const sep = document.getElementById('sepSelect').value;
+    const result = Papa.parse(text, { delimiter: sep === '\\t' ? '\t' : sep, header: false, skipEmptyLines: false });
+    const data = result.data;
+    if (data.length === 0) { parsedData = { sheets: [{ name: 'CSV', headers: [], rows: [] }] }; return; }
+    parsedData = { sheets: [{ name: fileData.name, headers: data[0].map(String), rows: data.slice(1).map(r => r.map(c => c == null ? '' : String(c))) }] };
+    document.getElementById('sepGroup').classList.remove('hidden');
+  }
+  activeSheet = 0;
+  renderPreview();
+}
+
+function renderPreview() {
+  const pc = document.getElementById('previewCard');
+  pc.classList.remove('hidden');
+  const tabs = document.getElementById('sheetTabs');
+  const totalRows = parsedData.sheets.reduce((s, sh) => s + sh.rows.length, 0);
+  document.getElementById('previewInfo').textContent = `— ${parsedData.sheets.length} Sheet(s), ${totalRows} Zeilen`;
+
+  // Tabs
+  if (parsedData.sheets.length > 1) {
+    tabs.classList.remove('hidden');
+    tabs.innerHTML = parsedData.sheets.map((sh, i) =>
+      `<div class="sheet-tab ${i === activeSheet ? 'active' : ''}" onclick="switchSheet(${i})">${sh.name}</div>`
+    ).join('');
+  } else { tabs.classList.add('hidden'); }
+
+  renderSheetTable('previewTable', parsedData.sheets[activeSheet], false);
+}
+
+function switchSheet(i) { activeSheet = i; renderPreview(); }
+
+function renderSheetTable(containerId, sheet, showChanged, resultSheet) {
+  const el = document.getElementById(containerId);
+  if (!sheet || sheet.headers.length === 0) { el.innerHTML = '<div style="padding:1rem;color:var(--text2)">Leeres Sheet</div>'; return; }
+
+  const idCols = findIdentityCols(sheet.headers);
+  const idSet = new Set(Object.values(idCols).map(c => sheet.headers.indexOf(c)));
+  const nameCol = findNameCol(sheet.headers);
+  if (nameCol) idSet.add(sheet.headers.indexOf(nameCol));
+
+  const maxRows = 20;
+  const rows = sheet.rows.slice(0, maxRows);
+  let html = '<table><thead><tr>';
+  sheet.headers.forEach((h, i) => {
+    html += `<th class="${idSet.has(i) ? 'id-col' : ''}">${esc(h)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach((r, ri) => {
+    html += '<tr>';
+    r.forEach((c, ci) => {
+      const isId = idSet.has(ci);
+      const changed = showChanged && resultSheet && resultSheet.rows[ri] && resultSheet.rows[ri][ci] !== c;
+      html += `<td class="${isId ? 'id-col' : ''} ${changed ? 'changed' : ''}">${esc(String(c))}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  if (sheet.rows.length > maxRows) html += `<div style="padding:.5rem;font-size:.78rem;color:var(--text2);text-align:center;">... und ${sheet.rows.length - maxRows} weitere Zeilen</div>`;
+  el.innerHTML = html;
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ================= PROCESSING =================
+
+async function processFile() {
+  if (!fileData || !parsedData) return;
+  const secret = document.getElementById('secretInput').value;
+  if (!secret) { alert('Bitte Secret eingeben.'); return; }
+
+  const btn = document.getElementById('actionBtn');
+  btn.disabled = true;
+  const pb = document.getElementById('progressBar');
+  const pf = document.getElementById('progressFill');
+  pb.classList.add('active'); pf.style.width = '0%';
+
+  const logEl = document.getElementById('logArea');
+  document.getElementById('logCard').classList.remove('hidden');
+  logEl.innerHTML = '';
+  const log = (msg, cls) => { logEl.innerHTML += `<span class="${cls||''}">${esc(msg)}</span>\n`; logEl.scrollTop = logEl.scrollHeight; };
+
+  const mode = currentMode;
+  const action = mode === 'encrypt' ? 'Pseudonymisierung' : 'De-Pseudonymisierung';
+  log(`${action} gestartet...`);
+  log(`Datei: ${fileData.name} (${fileData.type.toUpperCase()})`);
+  log(`Leite Schluessel ab (PBKDF2, 100k Runden)...`);
+
+  let keyBytes;
+  try { keyBytes = await deriveKey(secret); } catch (e) { log('FEHLER: ' + e.message, 'err'); btn.disabled = false; return; }
+  log('Schluessel abgeleitet.', 'ok');
+  pf.style.width = '10%';
+
+  const transform = mode === 'encrypt' ? encryptValue : decryptValue;
+  let totalCells = 0;
+  let sheetsProcessed = 0;
+  let sheetsSkipped = 0;
+  const resultSheets = [];
+
+  for (let si = 0; si < parsedData.sheets.length; si++) {
+    const sheet = parsedData.sheets[si];
+    const pct = 10 + (si / parsedData.sheets.length) * 80;
+    pf.style.width = pct + '%';
+
+    if (sheet.headers.length === 0 || sheet.rows.length === 0) {
+      log(`  Sheet "${sheet.name}": uebersprungen (leer)`, 'warn');
+      sheetsSkipped++;
+      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], rows: sheet.rows.map(r => [...r]) });
+      continue;
+    }
+
+    const idCols = findIdentityCols(sheet.headers);
+    if (Object.keys(idCols).length === 0) {
+      log(`  Sheet "${sheet.name}": keine Identitaetsspalten erkannt [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
+      sheetsSkipped++;
+      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], rows: sheet.rows.map(r => [...r]) });
+      continue;
+    }
+
+    const colIndices = {};
+    for (const [canon, actual] of Object.entries(idCols)) {
+      colIndices[canon] = sheet.headers.indexOf(actual);
+    }
+    const nameColName = findNameCol(sheet.headers);
+    let nameColIdx = nameColName ? sheet.headers.indexOf(nameColName) : -1;
+
+    // NAME composite check
+    let nameIsComposite = false;
+    const famIdx = colIndices.familienname ?? -1;
+    const vorIdx = colIndices.vorname ?? -1;
+    if (nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0 && sheet.rows.length > 0) {
+      const nv = (sheet.rows[0][nameColIdx] || '').trim();
+      const fv = (sheet.rows[0][famIdx] || '').trim();
+      const vv = (sheet.rows[0][vorIdx] || '').trim();
+      nameIsComposite = (nv === `${fv} ${vv}`.trim()) || (nv === `${vv} ${fv}`.trim());
+    }
+
+    const colInfo = Object.values(idCols).join(', ') + (nameIsComposite && nameColName ? ' + ' + nameColName : '');
+    log(`  Sheet "${sheet.name}": ${colInfo}`);
+
+    const newRows = [];
+    let sheetCells = 0;
+    for (let ri = 0; ri < sheet.rows.length; ri++) {
+      const row = [...sheet.rows[ri]];
+      for (const [canon, ci] of Object.entries(colIndices)) {
+        const val = (row[ci] || '').trim();
+        if (val) {
+          row[ci] = await transform(keyBytes, val);
+          sheetCells++;
+        }
+      }
+      if (nameIsComposite && nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0) {
+        row[nameColIdx] = `${(row[famIdx]||'').trim()} ${(row[vorIdx]||'').trim()}`.trim();
+      }
+      newRows.push(row);
+      // Update progress within sheet
+      if (ri % 100 === 0) {
+        const innerPct = 10 + ((si + ri / sheet.rows.length) / parsedData.sheets.length) * 80;
+        pf.style.width = innerPct + '%';
+        await new Promise(r => setTimeout(r, 0)); // yield to UI
+      }
+    }
+    totalCells += sheetCells;
+    sheetsProcessed++;
+    log(`    -> ${sheetCells} Zellen verarbeitet`, 'ok');
+    resultSheets.push({ name: sheet.name, headers: [...sheet.headers], rows: newRows });
+  }
+
+  pf.style.width = '95%';
+
+  // Build output
+  const suffix = mode === 'encrypt' ? '_pseudo' : '_restored';
+  if (fileData.type === 'xlsx') {
+    const wb = XLSX.utils.book_new();
+    for (const rs of resultSheets) {
+      const data = [rs.headers, ...rs.rows];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, rs.name);
+    }
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    resultBlob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    resultName = fileData.name.replace(/\.xlsx$/i, suffix + '.xlsx');
+  } else {
+    const sep = document.getElementById('sepSelect').value === '\\t' ? '\t' : document.getElementById('sepSelect').value;
+    const rs = resultSheets[0];
+    // Detect original BOM and quoting
+    const rawBytes = new Uint8Array(fileData.raw);
+    const hasBom = rawBytes[0] === 0xEF && rawBytes[1] === 0xBB && rawBytes[2] === 0xBF;
+    const firstLine = new TextDecoder('utf-8').decode(rawBytes.slice(hasBom ? 3 : 0, Math.min(500, rawBytes.length)));
+    const quoteAll = firstLine.trimStart().startsWith('"');
+
+    const data = [rs.headers, ...rs.rows];
+    const csvStr = Papa.unparse(data, { delimiter: sep, quotes: quoteAll });
+    // Detect line ending from original
+    const origText = new TextDecoder('utf-8').decode(fileData.raw);
+    const useCrlf = origText.includes('\r\n');
+    let finalCsv = csvStr;
+    if (useCrlf && !finalCsv.includes('\r\n')) finalCsv = finalCsv.replace(/\n/g, '\r\n');
+    if (!useCrlf) finalCsv = finalCsv.replace(/\r\n/g, '\n');
+
+    const parts = [];
+    if (hasBom) parts.push(new Uint8Array([0xEF, 0xBB, 0xBF]));
+    parts.push(new TextEncoder().encode(finalCsv));
+    resultBlob = new Blob(parts, { type: 'text/csv;charset=utf-8' });
+    const ext = fileData.name.match(/\.[^.]+$/)?.[0] || '.csv';
+    resultName = fileData.name.replace(/\.[^.]+$/, suffix + ext);
+  }
+
+  pf.style.width = '100%';
+  log(`\n${action} abgeschlossen.`, 'ok');
+  log(`  ${sheetsProcessed} Sheet(s) verarbeitet, ${totalCells} Zellen`, 'ok');
+  if (sheetsSkipped) log(`  ${sheetsSkipped} Sheet(s) uebersprungen`, 'warn');
+
+  // Stats
+  document.getElementById('resultCard').classList.remove('hidden');
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat"><div class="stat-num">${sheetsProcessed}</div><div class="stat-label">Sheets</div></div>
+    <div class="stat"><div class="stat-num">${totalCells}</div><div class="stat-label">Zellen</div></div>
+    <div class="stat"><div class="stat-num">${sheetsSkipped}</div><div class="stat-label">Uebersprungen</div></div>`;
+  document.getElementById('dlName').textContent = resultName;
+
+  // Compare
+  lastResultSheets = resultSheets;
+  const cc = document.getElementById('compareCard');
+  cc.classList.remove('hidden');
+  const resultLabel = mode === 'encrypt' ? 'Pseudonymisiert' : 'Wiederhergestellt';
+  document.getElementById('cmpTabResult').textContent = resultLabel;
+  compareView = 'orig';
+  switchCompare('orig');
+
+  // History
+  addHistory(fileData.name, mode);
+
+  btn.disabled = false;
+  setTimeout(() => { pb.classList.remove('active'); }, 1000);
+}
+
+function downloadResult() {
+  if (!resultBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(resultBlob);
+  a.download = resultName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ================= UI =================
+
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('btnEnc').className = 'mode-btn' + (m === 'encrypt' ? ' active-enc' : '');
+  document.getElementById('btnDec').className = 'mode-btn' + (m === 'decrypt' ? ' active-dec' : '');
+  const btn = document.getElementById('actionBtn');
+  btn.textContent = m === 'encrypt' ? 'Pseudonymisieren' : 'De-Pseudonymisieren';
+  btn.className = 'action-btn ' + m;
+  updateActionState();
+}
+
+function updateDropzoneUI() {
+  const dz = document.getElementById('dropzone');
+  const icon = document.getElementById('dzIcon');
+  const text = document.getElementById('dzText');
+  if (fileData) {
+    dz.classList.add('has-file');
+    icon.textContent = '\u2705';
+    text.innerHTML = `<span class="dropzone-file">${esc(fileData.name)}</span><br><span class="dropzone-text">Klicken oder ziehen fuer neue Datei</span>`;
+  } else {
+    dz.classList.remove('has-file');
+    icon.textContent = '\uD83D\uDCC4';
+    text.textContent = 'CSV oder XLSX hierher ziehen — oder klicken';
+  }
+}
+
+function updateActionState() {
+  const btn = document.getElementById('actionBtn');
+  const secret = document.getElementById('secretInput').value;
+  btn.disabled = !fileData || !secret;
+  const hint = document.getElementById('actionHint');
+  if (!fileData) hint.textContent = 'Zuerst eine Datei waehlen';
+  else if (!secret) hint.textContent = 'Secret eingeben';
+  else hint.textContent = '';
+}
+
+// Dark mode
+function initDarkMode() {
+  const saved = localStorage.getItem('dm');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (saved === 'dark' || (!saved && prefersDark)) document.documentElement.classList.add('dark');
+}
+document.getElementById('dmToggle').addEventListener('click', () => {
+  document.documentElement.classList.toggle('dark');
+  localStorage.setItem('dm', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+});
+initDarkMode();
+
+// Eye button
+document.getElementById('eyeBtn').addEventListener('click', () => {
+  const inp = document.getElementById('secretInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+});
+
+// Secret input
+document.getElementById('secretInput').addEventListener('input', updateActionState);
+
+// Separator change re-parses CSV
+document.getElementById('sepSelect').addEventListener('change', () => { if (fileData && fileData.type === 'csv') parseFile(); });
+
+// Drag & Drop
+const dz = document.getElementById('dropzone');
+const fi = document.getElementById('fileInput');
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', (e) => {
+  e.preventDefault(); dz.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fi.addEventListener('change', () => { if (fi.files.length) handleFile(fi.files[0]); });
+
+// Info popup
+document.getElementById('infoBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('infoPopup').classList.toggle('show');
+});
+document.addEventListener('click', () => document.getElementById('infoPopup').classList.remove('show'));
+
+// Compare toggle
+function switchCompare(view) {
+  compareView = view;
+  const tabOrig = document.getElementById('cmpTabOrig');
+  const tabResult = document.getElementById('cmpTabResult');
+  tabOrig.className = 'compare-tab' + (view === 'orig' ? ' active-orig' : '');
+  tabResult.className = 'compare-tab' + (view === 'result' ? ' active-result' : '');
+  if (parsedData && lastResultSheets) {
+    const origSheet = parsedData.sheets[activeSheet];
+    const resSheet = lastResultSheets[activeSheet];
+    if (view === 'orig') {
+      renderSheetTable('compareTable', origSheet, true, resSheet);
+    } else {
+      renderSheetTable('compareTable', resSheet, false);
+    }
+  }
+}
+
+// History
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem('pseudo_history') || '[]'); } catch { return []; }
+}
+function addHistory(name, mode) {
+  const h = loadHistory();
+  h.unshift({ name, mode, time: new Date().toLocaleString('de-AT') });
+  if (h.length > 10) h.length = 10;
+  localStorage.setItem('pseudo_history', JSON.stringify(h));
+  renderHistory();
+}
+function renderHistory() {
+  const h = loadHistory();
+  const el = document.getElementById('historyList');
+  if (h.length === 0) { el.innerHTML = '<span style="font-size:.82rem;color:var(--text2);">Noch keine Verarbeitungen.</span>'; return; }
+  el.innerHTML = h.map(e => `
+    <div class="history-item">
+      <span class="hist-file">${esc(e.name)}</span>
+      <span class="hist-mode ${e.mode === 'encrypt' ? 'enc' : 'dec'}">${e.mode === 'encrypt' ? 'Encrypt' : 'Decrypt'}</span>
+      <span class="hist-time">${esc(e.time)}</span>
+    </div>`).join('');
+}
+renderHistory();
+</script>
+</body>
+</html>
