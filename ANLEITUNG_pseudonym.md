@@ -1,13 +1,31 @@
-# Anleitung: pseudonym.py
+# Anleitung: pseudonymizer
 
-## Was macht das Skript?
+## Was macht das Tool?
 
-`pseudonym.py` pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV- und XLSX-Dateien. Es ersetzt Familienname, Vorname und Matrikelnummer durch verschluesselte Werte, die nur mit dem richtigen Secret wieder zurueckgefuehrt werden koennen.
+Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV- und XLSX-Dateien. Personenbezogene Spalten (Familienname, Vorname, Matrikelnummer, E-Mail, Pruefer) werden durch verschluesselte Werte ersetzt, die nur mit dem richtigen Secret zurueckgefuehrt werden koennen.
 
 **Verfahren:** AES-256-CBC (symmetrische Verschluesselung, deterministisch mit PBKDF2-Schluesselableitung). Es wird keine separate Key-Datei benoetigt — derselbe Secret verschluesselt und entschluesselt.
 
+**Zwei Varianten:** Es gibt eine Python-CLI (`pseudonym.py`) und eine Browser-GUI (`pseudonym_gui.html`). Beide sind kryptografisch kompatibel.
 
-## Voraussetzungen
+
+## Variante 1: Browser-GUI (empfohlen fuer Einsteiger)
+
+Kein Install noetig. Einfach `pseudonym_gui.html` im Browser oeffnen (Doppelklick).
+
+1. **Datei waehlen:** CSV oder XLSX per Drag & Drop oder Dateiauswahl laden
+2. **Secret eingeben:** Beliebiges Passwort (muss zum Entschluesseln identisch sein)
+3. **Modus waehlen:** "Verschluesseln" oder "Entschluesseln"
+4. **Starten:** Ergebnis wird zum Download angeboten
+
+Alle Daten werden **lokal im Browser** verarbeitet — nichts wird hochgeladen oder uebertragen.
+
+Detaillierte Anleitung: [docs/usage-gui.md](docs/usage-gui.md)
+
+
+## Variante 2: Python CLI
+
+### Voraussetzungen
 
 Python 3.8+ und folgende Pakete:
 
@@ -17,8 +35,6 @@ pip install cryptography openpyxl
 
 `cryptography` wird fuer die AES-Verschluesselung benoetigt, `openpyxl` fuer die XLSX-Verarbeitung.
 
-
-## Verwendung
 
 ### CSV pseudonymisieren
 
@@ -67,18 +83,20 @@ python pseudonym.py encrypt eingabe.csv --secret "MeinGeheimesPasswort" --sep ";
 
 ## Unterstuetzte Spalten
 
-Das Skript erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten:
+Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (case-insensitive):
 
-| Spaltentyp       | Erkannte Spaltennamen (case-insensitive)                                      |
-|------------------|-------------------------------------------------------------------------------|
-| Familienname     | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT` |
-| Vorname          | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`                     |
-| Matrikelnummer   | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `REGISTRATION_NUMBER`             |
-| E-Mail           | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`                                     |
-| Pruefer/Examiner | `Examiner`, `Prüfer`, `Pruefer`, `EXAMINER`, `PRÜFER`                          |
-| Name (optional)  | `NAME` — wird automatisch aus Familienname + Vorname zusammengesetzt, falls erkannt |
+| Spaltentyp | Erkannte Spaltennamen |
+|---|---|
+| Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName` |
+| Vorname | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`, `First Name` |
+| Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `REGISTRATION_NUMBER`, `StudentID`, `Matrikel` |
+| E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL` |
+| Pruefer/Examiner | `Examiner`, `Pruefer`, `Pruefer`, `EXAMINER` |
+| Name (optional) | `NAME` — wird automatisch aus Familienname + Vorname zusammengesetzt, falls erkannt |
 
-Es muessen nicht alle Spalten vorhanden sein. Das Skript verschluesselt nur die gefundenen Identitaetsspalten. Alle anderen Spalten bleiben unveraendert.
+Es muessen nicht alle Spalten vorhanden sein. Das Tool verschluesselt nur die gefundenen Identitaetsspalten. Alle anderen Spalten bleiben unveraendert.
+
+Vollstaendige Spalten-Referenz: [docs/column-reference.md](docs/column-reference.md)
 
 
 ## NAME-Spalte
@@ -88,7 +106,7 @@ Falls eine Spalte `NAME` existiert und deren Inhalt der Kombination aus `FAMILIE
 
 ## Bekannte XLSX-Probleme
 
-Falls eine XLSX-Datei fehlerhafte Zeichnungsreferenzen enthaelt (z.B. `drawing1.xml` fehlt im Archiv), repariert das Skript diese automatisch vor der Verarbeitung. Eine entsprechende Meldung wird ausgegeben.
+Falls eine XLSX-Datei fehlerhafte Zeichnungsreferenzen enthaelt (z.B. `drawing1.xml` fehlt im Archiv), repariert das Tool diese automatisch vor der Verarbeitung. Eine entsprechende Meldung wird ausgegeben.
 
 
 ## Wichtige Hinweise
@@ -97,6 +115,7 @@ Falls eine XLSX-Datei fehlerhafte Zeichnungsreferenzen enthaelt (z.B. `drawing1.
 - **Deterministisch:** Gleicher Secret + gleiche Daten = gleiches Pseudonym. Das ermoeglicht die Zuordnung ueber mehrere Dateien hinweg, solange derselbe Secret verwendet wird.
 - **CSV-Formaterhaltung:** BOM (Byte Order Mark), Quoting-Stil und Zeilenumbrueche der Originaldatei werden beibehalten. Ein Encrypt-Decrypt-Roundtrip liefert eine byte-identische Datei.
 - **XLSX-Formaterhaltung:** Zellformatierung, bedingte Formatierung und Styles bleiben erhalten. Alle Sheets werden verarbeitet (Sheets ohne Identitaetsspalten werden uebersprungen).
+- **Kompatibilitaet:** Python CLI und Browser-GUI erzeugen identische Pseudonyme fuer gleiche Eingaben mit gleichem Secret.
 
 
 ## Beispiel-Workflow (MedCampus-Export)
@@ -123,7 +142,7 @@ python pseudonym.py decrypt tp-jahr5-2026_SoSe_0_pseudo.xlsx --secret "SoSe2026-
 ## Vollstaendige Optionen
 
 ```
-python pseudonym.py [-h] {encrypt,decrypt} input --secret SECRET [--output OUTPUT] [--sep SEP]
+python pseudonym.py [-h] [--version] {encrypt,decrypt} input --secret SECRET [--output OUTPUT] [--sep SEP]
 
 Argumente:
   {encrypt,decrypt}   encrypt = pseudonymisieren, decrypt = zurueckfuehren
@@ -131,4 +150,5 @@ Argumente:
   --secret SECRET     Geheimer Schluessel (beliebiger String)
   --output, -o        Ausgabepfad (Standard: <name>_pseudo.<ext> / <name>_restored.<ext>)
   --sep, -s           CSV-Trennzeichen (Standard: Komma; wird bei XLSX ignoriert)
+  --version           Versionsnummer anzeigen
 ```
