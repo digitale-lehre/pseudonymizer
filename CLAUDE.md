@@ -30,10 +30,11 @@ README.md             Project overview
 | familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName |
 | vorname | VORNAME, Vorname, FirstName, FIRST_NAME_OF_STUDENT, First Name |
 | matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, REGISTRATION_NUMBER, StudentID, Matrikel |
-| email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL |
+| email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL, E-Mail des Teilnehmers, Attendee Email |
 | pruefer | Examiner, Pruefer, Prüfer |
+| anzeigename | Anzeigename, Display Name, DisplayName |
 
-`NAME` column: auto-detected as composite of familienname + vorname (checked against first data row).
+`NAME` column: auto-detected as composite of familienname + vorname (checked against first data row). Note: `Anzeigename`/`Display Name` is NOT a composite — it is encrypted independently (Webex display names may differ from Vorname + Nachname).
 
 When adding new aliases, update `COLUMN_ALIASES` in `pseudonym.py` AND the `COLUMN_ALIASES` object in `pseudonym_gui.html`.
 

@@ -90,8 +90,9 @@ Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (
 | Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName` |
 | Vorname | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`, `First Name` |
 | Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `REGISTRATION_NUMBER`, `StudentID`, `Matrikel` |
-| E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL` |
+| E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL`, `E-Mail des Teilnehmers`, `Attendee Email` |
 | Pruefer/Examiner | `Examiner`, `Pruefer`, `Pruefer`, `EXAMINER` |
+| Anzeigename | `Anzeigename`, `Display Name`, `DisplayName` |
 | Name (optional) | `NAME` — wird automatisch aus Familienname + Vorname zusammengesetzt, falls erkannt |
 
 Es muessen nicht alle Spalten vorhanden sein. Das Tool verschluesselt nur die gefundenen Identitaetsspalten. Alle anderen Spalten bleiben unveraendert.

@@ -32,7 +32,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # Spaltennamen-Mapping: verschiedene Schreibweisen -> kanonischer Schluessel
 # Jeder kanonische Schluessel hat eine Liste von moeglichen Spaltennamen
@@ -48,9 +48,12 @@ COLUMN_ALIASES = {
                      "REGISTRATION_NUMBER", "Registration_Number", "Registration Number"],
     "email":        ["EMAIL_ADDRESS", "Email_Address", "E-Mail", "E-MAIL", "e-mail",
                      "Email", "email", "EMAIL", "Mail", "MAIL", "mail",
-                     "E_MAIL", "EmailAddress", "email_address"],
+                     "E_MAIL", "EmailAddress", "email_address",
+                     "E-Mail des Teilnehmers", "Attendee Email"],
     "pruefer":      ["Examiner", "EXAMINER", "examiner", "Prüfer", "PRÜFER", "prüfer",
                      "Pruefer", "PRUEFER", "pruefer", "Prufer", "PRUFER"],
+    "anzeigename":  ["Anzeigename", "ANZEIGENAME", "anzeigename",
+                     "Display Name", "DisplayName", "DISPLAY NAME", "display name"],
 }
 NAME_ALIASES = ["NAME", "Name", "name"]
 
@@ -129,34 +132,38 @@ def find_name_col(headers: list) -> str:
 
 # ======================== CSV ========================
 
-def detect_quoting(input_path: str) -> int:
-    with open(input_path, "rb") as f:
-        first_line = f.readline()
-    stripped = first_line.lstrip(b"\xef\xbb\xbf").strip()
-    if stripped.startswith(b'"'):
-        return csv.QUOTE_ALL
-    return csv.QUOTE_MINIMAL
-
-
-def detect_encoding(input_path: str) -> tuple:
-    with open(input_path, "rb") as f:
-        raw = f.read(8192)
-    has_bom = raw[:3] == b"\xef\xbb\xbf"
-    has_crlf = b"\r\n" in raw
-    return has_bom, has_crlf
+def detect_file_encoding(raw: bytes) -> tuple:
+    """Erkennt Encoding und BOM-Laenge aus rohen Bytes.
+    Unterstuetzt UTF-8 (mit/ohne BOM), UTF-16 LE und UTF-16 BE.
+    Gibt (encoding, bom_length) zurueck."""
+    if len(raw) >= 2 and raw[:2] == b"\xff\xfe":
+        return "utf-16-le", 2
+    if len(raw) >= 2 and raw[:2] == b"\xfe\xff":
+        return "utf-16-be", 2
+    if len(raw) >= 3 and raw[:3] == b"\xef\xbb\xbf":
+        return "utf-8", 3
+    return "utf-8", 0
 
 
 def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: str = ","):
     key = derive_key(secret)
     transform = encrypt_value if mode == "encrypt" else decrypt_value
 
-    quoting = detect_quoting(input_path)
-    has_bom, uses_crlf = detect_encoding(input_path)
+    # Datei als Bytes lesen und Encoding erkennen (UTF-8, UTF-16 LE/BE)
+    with open(input_path, "rb") as f:
+        raw = f.read()
 
-    with open(input_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f, delimiter=sep)
-        fieldnames = reader.fieldnames
-        rows = list(reader)
+    encoding, bom_len = detect_file_encoding(raw)
+    text = raw[bom_len:].decode(encoding)
+    has_crlf = "\r\n" in text
+
+    # Quoting erkennen (anhand der ersten Zeile des dekodierten Texts)
+    first_line = text.split("\n")[0].strip() if text else ""
+    quoting = csv.QUOTE_ALL if first_line.startswith('"') else csv.QUOTE_MINIMAL
+
+    reader = csv.DictReader(io.StringIO(text), delimiter=sep)
+    fieldnames = reader.fieldnames
+    rows = list(reader)
 
     if not fieldnames:
         print("FEHLER: Konnte keine Spalten erkennen.", file=sys.stderr)
@@ -169,8 +176,9 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
         print(f"Vorhandene Spalten: {fieldnames}", file=sys.stderr)
         sys.exit(1)
 
-    # NAME composite check
+    # NAME composite check (erkennt auch Reihenfolge: "Fam Vor" vs "Vor Fam")
     name_is_composite = False
+    name_order = "fam_vor"
     fam_col = id_cols.get("familienname")
     vor_col = id_cols.get("vorname")
     if name_col and fam_col and vor_col and rows:
@@ -178,32 +186,42 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
         name_val = (sample.get(name_col) or "").strip()
         fam_val = (sample.get(fam_col) or "").strip()
         vor_val = (sample.get(vor_col) or "").strip()
-        expected = f"{fam_val} {vor_val}".strip()
-        name_is_composite = (name_val == expected) or (name_val == f"{vor_val} {fam_val}".strip())
+        if name_val == f"{fam_val} {vor_val}".strip():
+            name_is_composite = True
+            name_order = "fam_vor"
+        elif name_val == f"{vor_val} {fam_val}".strip():
+            name_is_composite = True
+            name_order = "vor_fam"
 
-    line_terminator = "\r\n" if uses_crlf else "\n"
+    line_terminator = "\r\n" if has_crlf else "\n"
 
-    with open(output_path, "wb") as f:
-        if has_bom:
-            f.write(b"\xef\xbb\xbf")
-        text_wrapper = io.TextIOWrapper(f, encoding="utf-8", newline="")
-        writer = csv.DictWriter(
-            text_wrapper, fieldnames=fieldnames, delimiter=sep,
-            quoting=quoting, lineterminator=line_terminator
-        )
-        writer.writeheader()
-        for row in rows:
-            new_row = dict(row)
-            for canon_key, actual_col in id_cols.items():
-                val = (row.get(actual_col) or "").strip()
-                if val:
-                    new_row[actual_col] = transform(key, val)
-            if name_col and name_is_composite:
-                fam = new_row.get(fam_col, "")
-                vor = new_row.get(vor_col, "")
+    # Ergebnis in StringIO schreiben, dann mit Original-Encoding ausgeben
+    str_out = io.StringIO()
+    writer = csv.DictWriter(
+        str_out, fieldnames=fieldnames, delimiter=sep,
+        quoting=quoting, lineterminator=line_terminator
+    )
+    writer.writeheader()
+    for row in rows:
+        new_row = dict(row)
+        for canon_key, actual_col in id_cols.items():
+            val = (row.get(actual_col) or "").strip()
+            if val:
+                new_row[actual_col] = transform(key, val)
+        if name_col and name_is_composite:
+            fam = new_row.get(fam_col, "")
+            vor = new_row.get(vor_col, "")
+            if name_order == "vor_fam":
+                new_row[name_col] = f"{vor} {fam}".strip()
+            else:
                 new_row[name_col] = f"{fam} {vor}".strip()
-            writer.writerow(new_row)
-        text_wrapper.detach()
+        writer.writerow(new_row)
+
+    output_text = str_out.getvalue()
+    with open(output_path, "wb") as f:
+        if bom_len > 0:
+            f.write(raw[:bom_len])
+        f.write(output_text.encode(encoding))
 
     cols_info = ", ".join(f"{v}" for v in id_cols.values())
     if name_col and name_is_composite:
@@ -213,6 +231,7 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
     print(f"  Eingabe:    {input_path} ({len(rows)} Zeilen)")
     print(f"  Ausgabe:    {output_path}")
     print(f"  Spalten:    {cols_info}")
+    print(f"  Encoding:   {encoding.upper()}{' (BOM)' if bom_len > 0 else ''}")
     print(f"  Verfahren:  AES-256-CBC (deterministisch, PBKDF2)")
     if mode == "encrypt":
         print(f"\n  Zum Zurueckfuehren:")
@@ -330,16 +349,21 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         if name_col_name and name_col_name in headers:
             name_col_idx = headers.index(name_col_name) + 1
 
-        # NAME composite check (anhand Zeile 2)
+        # NAME composite check (anhand Zeile 2, erkennt Reihenfolge)
         name_is_composite = False
+        name_order = "fam_vor"
         fam_idx = col_indices.get("familienname")
         vor_idx = col_indices.get("vorname")
         if name_col_idx and fam_idx and vor_idx and ws.max_row >= 2:
             name_val = str(ws.cell(row=2, column=name_col_idx).value or "").strip()
             fam_val = str(ws.cell(row=2, column=fam_idx).value or "").strip()
             vor_val = str(ws.cell(row=2, column=vor_idx).value or "").strip()
-            expected = f"{fam_val} {vor_val}".strip()
-            name_is_composite = (name_val == expected) or (name_val == f"{vor_val} {fam_val}".strip())
+            if name_val == f"{fam_val} {vor_val}".strip():
+                name_is_composite = True
+                name_order = "fam_vor"
+            elif name_val == f"{vor_val} {fam_val}".strip():
+                name_is_composite = True
+                name_order = "vor_fam"
 
         sheet_count = 0
         for row_idx in range(2, ws.max_row + 1):
@@ -352,11 +376,14 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
                         cell.value = transform(key, val_str)
                         sheet_count += 1
 
-            # NAME-Spalte aktualisieren
+            # NAME-Spalte aktualisieren (Original-Reihenfolge beibehalten)
             if name_col_idx and name_is_composite and fam_idx and vor_idx:
                 fam_new = str(ws.cell(row=row_idx, column=fam_idx).value or "").strip()
                 vor_new = str(ws.cell(row=row_idx, column=vor_idx).value or "").strip()
-                ws.cell(row=row_idx, column=name_col_idx).value = f"{fam_new} {vor_new}".strip()
+                if name_order == "vor_fam":
+                    ws.cell(row=row_idx, column=name_col_idx).value = f"{vor_new} {fam_new}".strip()
+                else:
+                    ws.cell(row=row_idx, column=name_col_idx).value = f"{fam_new} {vor_new}".strip()
 
         total_cells += sheet_count
         cols_info = ", ".join(id_cols.values())

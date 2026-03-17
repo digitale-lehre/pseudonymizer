@@ -72,6 +72,8 @@ Nur erkannte Identitaetsspalten werden verschluesselt. Alle anderen Spalten blei
 | `E_MAIL` | Underscore-Variante |
 | `EmailAddress` | CamelCase |
 | `email_address` | Snake Case |
+| `E-Mail des Teilnehmers` | Webex (Deutsch) |
+| `Attendee Email` | Webex (Englisch) |
 
 ### Pruefer / Examiner
 
@@ -85,15 +87,30 @@ Nur erkannte Identitaetsspalten werden verschluesselt. Alle anderen Spalten blei
 | `PRUFER` | Variante |
 
 
+### Anzeigename / Display Name
+
+| Alias | Herkunft |
+|---|---|
+| `Anzeigename` | Webex (Deutsch) |
+| `ANZEIGENAME` | Variante |
+| `anzeigename` | Kleinschreibung |
+| `Display Name` | Webex (Englisch) |
+| `DisplayName` | CamelCase |
+| `DISPLAY NAME` | Variante |
+| `display name` | Kleinschreibung |
+
+> **Hinweis:** Im Gegensatz zur `NAME`-Spalte wird `Anzeigename` / `Display Name` als eigenstaendige Identitaetsspalte verschluesselt, nicht als Zusammensetzung. Dies ist notwendig, da der Anzeigename in Webex-Exports nicht immer mit Vorname + Nachname uebereinstimmt (z.B. bei Gaesten, Titel, oder wenn Vorname/Nachname "N/A" ist).
+
+
 ## NAME-Spalte (optional)
 
 Die `NAME`-Spalte wird gesondert behandelt:
 
-| Alias |
-|---|
-| `NAME` |
-| `Name` |
-| `name` |
+| Alias | Herkunft |
+|---|---|
+| `NAME` | Allgemein |
+| `Name` | Allgemein |
+| `name` | Kleinschreibung |
 
 **Erkennung als Zusammensetzung:** Falls eine `NAME`-Spalte existiert und deren Inhalt in der ersten Datenzeile der Kombination aus `FAMILIENNAME VORNAME` (oder `VORNAME FAMILIENNAME`) entspricht, wird sie als zusammengesetzt erkannt.
 

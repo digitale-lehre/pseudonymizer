@@ -155,7 +155,7 @@ td.changed { background: var(--orange-bg); }
   <div class="header">
     <div>
       <h1><span>Pseudonymisierung</span> Tool</h1>
-      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.1.0 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
+      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.2.0 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
     </div>
     <div class="header-right">
       <div class="badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Lokal &amp; sicher</div>
@@ -199,8 +199,9 @@ td.changed { background: var(--orange-bg); }
               <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT</td></tr>
               <tr><td>Vorname</td><td>VORNAME, FirstName, FIRST_NAME_OF_STUDENT</td></tr>
               <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, REGISTRATION_NUMBER</td></tr>
-              <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, Email, Mail</td></tr>
+              <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, Email, Mail, E-Mail des Teilnehmers, Attendee Email</td></tr>
               <tr><td>Pruefer</td><td>Examiner, Pruefer, Prüfer</td></tr>
+              <tr><td>Anzeigename</td><td>Anzeigename, Display Name, DisplayName</td></tr>
               <tr><td>Name</td><td>NAME — auto-composite aus Familienname + Vorname</td></tr>
             </table>
           </div>
@@ -277,9 +278,12 @@ const COLUMN_ALIASES = {
     "MatrNr","Matrikel","matrikel","MATRIKEL","StudentID","Student_ID",
     "REGISTRATION_NUMBER","Registration_Number","Registration Number"],
   email: ["EMAIL_ADDRESS","Email_Address","E-Mail","E-MAIL","e-mail","Email","email",
-    "EMAIL","Mail","MAIL","mail","E_MAIL","EmailAddress","email_address"],
+    "EMAIL","Mail","MAIL","mail","E_MAIL","EmailAddress","email_address",
+    "E-Mail des Teilnehmers","Attendee Email"],
   pruefer: ["Examiner","EXAMINER","examiner","Prüfer","PRÜFER","prüfer",
-    "Pruefer","PRUEFER","pruefer","Prufer","PRUFER"]
+    "Pruefer","PRUEFER","pruefer","Prufer","PRUFER"],
+  anzeigename: ["Anzeigename","ANZEIGENAME","anzeigename",
+    "Display Name","DisplayName","DISPLAY NAME","display name"]
 };
 const NAME_ALIASES = ["NAME","Name","name"];
 
@@ -372,13 +376,38 @@ async function decryptValue(keyBytes, token) {
   } catch { return token; }
 }
 
+// ================= ENCODING DETECTION =================
+
+function detectEncoding(buffer) {
+  const b = new Uint8Array(buffer);
+  if (b.length >= 2 && b[0] === 0xFF && b[1] === 0xFE) return { encoding: 'utf-16le', bomLength: 2 };
+  if (b.length >= 2 && b[0] === 0xFE && b[1] === 0xFF) return { encoding: 'utf-16be', bomLength: 2 };
+  if (b.length >= 3 && b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) return { encoding: 'utf-8', bomLength: 3 };
+  return { encoding: 'utf-8', bomLength: 0 };
+}
+
+function encodeText(text, encoding) {
+  if (encoding === 'utf-8') return new TextEncoder().encode(text);
+  // UTF-16 LE oder BE
+  const buf = new ArrayBuffer(text.length * 2);
+  const view = new DataView(buf);
+  const le = encoding === 'utf-16le';
+  for (let i = 0; i < text.length; i++) {
+    view.setUint16(i * 2, text.charCodeAt(i), le);
+  }
+  return new Uint8Array(buf);
+}
+
 // ================= FILE HANDLING =================
 
 function handleFile(file) {
-  fileData = { name: file.name, type: file.name.match(/\.xlsx$/i) ? 'xlsx' : 'csv', raw: null };
+  fileData = { name: file.name, type: file.name.match(/\.xlsx$/i) ? 'xlsx' : 'csv', raw: null, encoding: 'utf-8', bomLength: 0 };
   const reader = new FileReader();
   reader.onload = (e) => {
     fileData.raw = e.target.result;
+    const enc = detectEncoding(fileData.raw);
+    fileData.encoding = enc.encoding;
+    fileData.bomLength = enc.bomLength;
     parseFile();
     updateDropzoneUI();
     updateActionState();
@@ -397,8 +426,16 @@ function parseFile() {
     })};
     document.getElementById('sepGroup').classList.add('hidden');
   } else {
-    const text = new TextDecoder('utf-8').decode(fileData.raw);
-    const sep = document.getElementById('sepSelect').value;
+    const rawSlice = new Uint8Array(fileData.raw).slice(fileData.bomLength);
+    const text = new TextDecoder(fileData.encoding).decode(rawSlice);
+    // Auto-detect separator from first line
+    const firstLine = text.split('\n')[0];
+    let detectedSep = ',';
+    if (firstLine.includes('\t')) detectedSep = '\t';
+    else if (firstLine.includes(';')) detectedSep = ';';
+    const selVal = detectedSep === '\t' ? '\\t' : detectedSep;
+    document.getElementById('sepSelect').value = selVal;
+    const sep = selVal;
     const result = Papa.parse(text, { delimiter: sep === '\\t' ? '\t' : sep, header: false, skipEmptyLines: false });
     const data = result.data;
     if (data.length === 0) { parsedData = { sheets: [{ name: 'CSV', headers: [], rows: [] }] }; return; }
@@ -523,15 +560,17 @@ async function processFile() {
     const nameColName = findNameCol(sheet.headers);
     let nameColIdx = nameColName ? sheet.headers.indexOf(nameColName) : -1;
 
-    // NAME composite check
+    // NAME composite check (erkennt auch Reihenfolge: "Fam Vor" vs "Vor Fam")
     let nameIsComposite = false;
+    let nameOrder = 'fam_vor';
     const famIdx = colIndices.familienname ?? -1;
     const vorIdx = colIndices.vorname ?? -1;
     if (nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0 && sheet.rows.length > 0) {
       const nv = (sheet.rows[0][nameColIdx] || '').trim();
       const fv = (sheet.rows[0][famIdx] || '').trim();
       const vv = (sheet.rows[0][vorIdx] || '').trim();
-      nameIsComposite = (nv === `${fv} ${vv}`.trim()) || (nv === `${vv} ${fv}`.trim());
+      if (nv === `${fv} ${vv}`.trim()) { nameIsComposite = true; nameOrder = 'fam_vor'; }
+      else if (nv === `${vv} ${fv}`.trim()) { nameIsComposite = true; nameOrder = 'vor_fam'; }
     }
 
     const colInfo = Object.values(idCols).join(', ') + (nameIsComposite && nameColName ? ' + ' + nameColName : '');
@@ -549,7 +588,8 @@ async function processFile() {
         }
       }
       if (nameIsComposite && nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0) {
-        row[nameColIdx] = `${(row[famIdx]||'').trim()} ${(row[vorIdx]||'').trim()}`.trim();
+        if (nameOrder === 'vor_fam') row[nameColIdx] = `${(row[vorIdx]||'').trim()} ${(row[famIdx]||'').trim()}`.trim();
+        else row[nameColIdx] = `${(row[famIdx]||'').trim()} ${(row[vorIdx]||'').trim()}`.trim();
       }
       newRows.push(row);
       // Update progress within sheet
@@ -582,24 +622,23 @@ async function processFile() {
   } else {
     const sep = document.getElementById('sepSelect').value === '\\t' ? '\t' : document.getElementById('sepSelect').value;
     const rs = resultSheets[0];
-    // Detect original BOM and quoting
+    // Detect original quoting from decoded text
     const rawBytes = new Uint8Array(fileData.raw);
-    const hasBom = rawBytes[0] === 0xEF && rawBytes[1] === 0xBB && rawBytes[2] === 0xBF;
-    const firstLine = new TextDecoder('utf-8').decode(rawBytes.slice(hasBom ? 3 : 0, Math.min(500, rawBytes.length)));
-    const quoteAll = firstLine.trimStart().startsWith('"');
+    const origDecoded = new TextDecoder(fileData.encoding).decode(rawBytes.slice(fileData.bomLength, Math.min(fileData.encoding.startsWith('utf-16') ? 2000 : 500, rawBytes.length)));
+    const quoteAll = origDecoded.trimStart().startsWith('"');
 
     const data = [rs.headers, ...rs.rows];
     const csvStr = Papa.unparse(data, { delimiter: sep, quotes: quoteAll });
     // Detect line ending from original
-    const origText = new TextDecoder('utf-8').decode(fileData.raw);
+    const origText = new TextDecoder(fileData.encoding).decode(rawBytes.slice(fileData.bomLength));
     const useCrlf = origText.includes('\r\n');
     let finalCsv = csvStr;
     if (useCrlf && !finalCsv.includes('\r\n')) finalCsv = finalCsv.replace(/\n/g, '\r\n');
     if (!useCrlf) finalCsv = finalCsv.replace(/\r\n/g, '\n');
 
     const parts = [];
-    if (hasBom) parts.push(new Uint8Array([0xEF, 0xBB, 0xBF]));
-    parts.push(new TextEncoder().encode(finalCsv));
+    if (fileData.bomLength > 0) parts.push(new Uint8Array(fileData.raw, 0, fileData.bomLength));
+    parts.push(encodeText(finalCsv, fileData.encoding));
     resultBlob = new Blob(parts, { type: 'text/csv;charset=utf-8' });
     const ext = fileData.name.match(/\.[^.]+$/)?.[0] || '.csv';
     resultName = fileData.name.replace(/\.[^.]+$/, suffix + ext);

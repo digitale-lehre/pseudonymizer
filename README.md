@@ -49,8 +49,9 @@ Das Tool erkennt automatisch verschiedene Schreibweisen (case-insensitive):
 | **Familienname** | FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName |
 | **Vorname** | VORNAME, FirstName, FIRST_NAME_OF_STUDENT, First Name |
 | **Matrikelnummer** | MATRIKELNUMMER, Matnr, REGISTRATION_NUMBER, StudentID, Matrikel |
-| **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL |
+| **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, E-Mail des Teilnehmers, Attendee Email |
 | **Pruefer** | Examiner, Pruefer, Pruefer |
+| **Anzeigename** | Anzeigename, Display Name, DisplayName |
 | **Name** *(optional)* | NAME — automatisch aus Familienname + Vorname zusammengesetzt |
 
 Vollstaendige Liste: [Spalten-Referenz](docs/column-reference.md)
