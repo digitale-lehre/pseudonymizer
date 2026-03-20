@@ -335,11 +335,19 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
             sheets_skipped.append(f"{ws.title} (leer)")
             continue
 
-        # Header aus Zeile 1 lesen
-        headers = []
-        for col_idx in range(1, (ws.max_column or 0) + 1):
-            val = ws.cell(row=1, column=col_idx).value
-            headers.append(str(val).strip() if val is not None else "")
+        # Alle Zeilen als Listen lesen, dann Header-Zeile finden
+        all_rows = []
+        for row_idx in range(1, (ws.max_row or 0) + 1):
+            row_vals = []
+            for col_idx in range(1, (ws.max_column or 0) + 1):
+                val = ws.cell(row=row_idx, column=col_idx).value
+                row_vals.append(str(val).strip() if val is not None else "")
+            all_rows.append(row_vals)
+
+        header_offset = find_header_row(all_rows)
+        headers = all_rows[header_offset] if all_rows else []
+        # header_row in openpyxl is 1-based: header_offset + 1
+        header_row_num = header_offset + 1
 
         id_cols = find_identity_cols(headers)
         if not id_cols:
@@ -347,7 +355,8 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
             sheets_skipped.append(f"{ws.title} (keine Identitaetsspalten erkannt: {[h for h in headers if h]})")
             continue
 
-        if ws.max_row < 2:
+        data_start_row = header_row_num + 1
+        if ws.max_row < data_start_row:
             sheets_skipped.append(f"{ws.title} (nur Header, keine Daten)")
             continue
 
@@ -362,15 +371,15 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         if name_col_name and name_col_name in headers:
             name_col_idx = headers.index(name_col_name) + 1
 
-        # NAME composite check (anhand Zeile 2, erkennt Reihenfolge)
+        # NAME composite check (anhand erster Datenzeile, erkennt Reihenfolge)
         name_is_composite = False
         name_order = "fam_vor"
         fam_idx = col_indices.get("familienname")
         vor_idx = col_indices.get("vorname")
-        if name_col_idx and fam_idx and vor_idx and ws.max_row >= 2:
-            name_val = str(ws.cell(row=2, column=name_col_idx).value or "").strip()
-            fam_val = str(ws.cell(row=2, column=fam_idx).value or "").strip()
-            vor_val = str(ws.cell(row=2, column=vor_idx).value or "").strip()
+        if name_col_idx and fam_idx and vor_idx and ws.max_row >= data_start_row:
+            name_val = str(ws.cell(row=data_start_row, column=name_col_idx).value or "").strip()
+            fam_val = str(ws.cell(row=data_start_row, column=fam_idx).value or "").strip()
+            vor_val = str(ws.cell(row=data_start_row, column=vor_idx).value or "").strip()
             if name_val == f"{fam_val} {vor_val}".strip():
                 name_is_composite = True
                 name_order = "fam_vor"
@@ -379,7 +388,7 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
                 name_order = "vor_fam"
 
         sheet_count = 0
-        for row_idx in range(2, ws.max_row + 1):
+        for row_idx in range(data_start_row, ws.max_row + 1):
             for canon_key, ci in col_indices.items():
                 cell = ws.cell(row=row_idx, column=ci)
                 val = cell.value
@@ -403,6 +412,8 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         if name_is_composite and name_col_name:
             cols_info += f" + {name_col_name}"
         sheets_processed.append(f"{ws.title} ({cols_info}: {sheet_count} Zellen)")
+        if header_row_num > 1:
+            print(f"    (Header in Zeile {header_row_num}, {header_row_num - 1} Metadaten-Zeile(n) uebersprungen)")
 
     wb.save(output_path)
 
