@@ -29,7 +29,7 @@ docs/                   Wiki-style documentation (column-reference, cryptography
 
 | Canonical key | Aliases |
 |--------------|---------|
-| familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname |
+| familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname, Familien- oder Nachname |
 | vorname | VORNAME, Vorname, FirstName, FIRST_NAME_OF_STUDENT, First Name |
 | matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, REGISTRATION_NUMBER, StudentID, Matrikel |
 | email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL, E-Mail des Teilnehmers, Attendee Email |

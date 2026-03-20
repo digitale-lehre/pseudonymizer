@@ -87,7 +87,7 @@ Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (
 
 | Spaltentyp | Erkannte Spaltennamen |
 |---|---|
-| Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName`, `Familienname oder Nachname` |
+| Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName`, `Familienname oder Nachname`, `Familien- oder Nachname` |
 | Vorname | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`, `First Name` |
 | Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `REGISTRATION_NUMBER`, `StudentID`, `Matrikel` |
 | E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL`, `E-Mail des Teilnehmers`, `Attendee Email` |
