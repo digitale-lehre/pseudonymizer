@@ -39,7 +39,8 @@ __version__ = "0.2.0"
 COLUMN_ALIASES = {
     "familienname": ["FAMILIENNAME", "Familienname", "familienname", "Zuname", "zuname",
                      "ZUNAME", "Nachname", "nachname", "NACHNAME", "Last Name", "LastName",
-                     "FAMILY_NAME_OF_STUDENT", "Family_Name_of_Student"],
+                     "FAMILY_NAME_OF_STUDENT", "Family_Name_of_Student",
+                     "Familienname oder Nachname"],
     "vorname":      ["VORNAME", "Vorname", "vorname", "First Name", "FirstName", "Firstname",
                      "FIRST_NAME_OF_STUDENT", "First_Name_of_Student"],
     "matnr":        ["MATRIKELNUMMER", "Matrikelnummer", "matrikelnummer", "Matnr", "matnr",
@@ -128,6 +129,18 @@ def find_name_col(headers: list) -> str:
         if alias.lower() in header_lower:
             return header_lower[alias.lower()]
     return None
+
+
+def find_header_row(rows, max_scan=20):
+    """Findet die Header-Zeile in einer Liste von Zeilen (als Listen).
+    Scannt bis zu max_scan Zeilen nach bekannten Identitaetsspalten.
+    Gibt den Index zurueck (0-basiert). Fallback: 0 (erste Zeile)."""
+    for i, row in enumerate(rows[:max_scan]):
+        # row is a list of cell values (strings)
+        headers = [str(c).strip() if c is not None else "" for c in row]
+        if find_identity_cols(headers):
+            return i
+    return 0
 
 
 # ======================== CSV ========================
