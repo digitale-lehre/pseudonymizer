@@ -87,7 +87,7 @@ Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (
 
 | Spaltentyp | Erkannte Spaltennamen |
 |---|---|
-| Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName` |
+| Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName`, `Familienname oder Nachname` |
 | Vorname | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`, `First Name` |
 | Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `REGISTRATION_NUMBER`, `StudentID`, `Matrikel` |
 | E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL`, `E-Mail des Teilnehmers`, `Attendee Email` |
@@ -108,6 +108,11 @@ Falls eine Spalte `NAME` existiert und deren Inhalt der Kombination aus `FAMILIE
 ## Bekannte XLSX-Probleme
 
 Falls eine XLSX-Datei fehlerhafte Zeichnungsreferenzen enthaelt (z.B. `drawing1.xml` fehlt im Archiv), repariert das Tool diese automatisch vor der Verarbeitung. Eine entsprechende Meldung wird ausgegeben.
+
+
+## MLW-Exporte (MedLearnWiki)
+
+MLW-Exporte enthalten Metadaten-Zeilen vor der eigentlichen Spalten-Kopfzeile (z.B. Modulcode, Modulname, Datum). Das Tool erkennt die Header-Zeile automatisch und behaelt die Metadaten-Zeilen unveraendert bei.
 
 
 ## Wichtige Hinweise

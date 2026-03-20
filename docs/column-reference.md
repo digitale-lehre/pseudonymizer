@@ -24,6 +24,7 @@ Nur erkannte Identitaetsspalten werden verschluesselt. Alle anderen Spalten blei
 | `LastName` | Englisch (CamelCase) |
 | `FAMILY_NAME_OF_STUDENT` | SAP/MedCampus |
 | `Family_Name_of_Student` | Mixed Case |
+| `Familienname oder Nachname` | MLW-Export (MedLearnWiki) |
 
 ### Vorname
 

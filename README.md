@@ -46,7 +46,7 @@ Das Tool erkennt automatisch verschiedene Schreibweisen (case-insensitive):
 
 | Spaltentyp | Erkannte Spaltennamen |
 |---|---|
-| **Familienname** | FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName |
+| **Familienname** | FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname |
 | **Vorname** | VORNAME, FirstName, FIRST_NAME_OF_STUDENT, First Name |
 | **Matrikelnummer** | MATRIKELNUMMER, Matnr, REGISTRATION_NUMBER, StudentID, Matrikel |
 | **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, E-Mail des Teilnehmers, Attendee Email |
