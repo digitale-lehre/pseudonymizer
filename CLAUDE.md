@@ -130,5 +130,5 @@ Both implementations scan for the header row (up to 20 rows). Files with metadat
 
 ### Modifying CSV format preservation
 - `detect_file_encoding()`: detects encoding (UTF-8/UTF-16 LE/BE) and BOM from raw bytes
-- Quoting detection: inline in `process_csv()`, checks first decoded line for QUOTE_ALL
+- Quoting detection: inline in `process_csv()`, checks header row (not first line) for QUOTE_ALL
 - Encoding, BOM, quoting, and line endings must all be preserved for byte-identical roundtrips
