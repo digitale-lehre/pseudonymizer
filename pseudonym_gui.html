@@ -196,7 +196,7 @@ td.changed { background: var(--orange-bg); }
             <strong>Erkannte Identitaetsspalten (case-insensitive):</strong>
             <table style="margin-top:.5rem;">
               <tr><th>Typ</th><th>Spaltennamen</th></tr>
-              <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT</td></tr>
+              <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Familienname oder Nachname</td></tr>
               <tr><td>Vorname</td><td>VORNAME, FirstName, FIRST_NAME_OF_STUDENT</td></tr>
               <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, REGISTRATION_NUMBER</td></tr>
               <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, Email, Mail, E-Mail des Teilnehmers, Attendee Email</td></tr>
@@ -260,7 +260,7 @@ td.changed { background: var(--orange-bg); }
 // ================= STATE =================
 let currentMode = 'encrypt';
 let fileData = null;       // { name, type:'csv'|'xlsx', raw:ArrayBuffer }
-let parsedData = null;     // { sheets: [{name, headers, rows}] }
+let parsedData = null;     // { sheets: [{name, headers, rows, metaRows}] }
 let resultBlob = null;
 let resultName = '';
 let activeSheet = 0;
@@ -271,7 +271,8 @@ let lastResultSheets = null;
 const COLUMN_ALIASES = {
   familienname: ["FAMILIENNAME","Familienname","familienname","Zuname","zuname","ZUNAME",
     "Nachname","nachname","NACHNAME","Last Name","LastName",
-    "FAMILY_NAME_OF_STUDENT","Family_Name_of_Student"],
+    "FAMILY_NAME_OF_STUDENT","Family_Name_of_Student",
+    "Familienname oder Nachname"],
   vorname: ["VORNAME","Vorname","vorname","First Name","FirstName","Firstname",
     "FIRST_NAME_OF_STUDENT","First_Name_of_Student"],
   matnr: ["MATRIKELNUMMER","Matrikelnummer","matrikelnummer","Matnr","matnr","MATNR",
@@ -305,6 +306,13 @@ function findNameCol(headers) {
     if (a.toLowerCase() in lower) return lower[a.toLowerCase()];
   }
   return null;
+}
+function findHeaderRow(rows, maxScan = 20) {
+  for (let i = 0; i < Math.min(rows.length, maxScan); i++) {
+    const headers = rows[i].map(c => c == null ? '' : String(c).trim());
+    if (Object.keys(findIdentityCols(headers)).length > 0) return i;
+  }
+  return 0;
 }
 
 // ================= CRYPTO (Web Crypto API — identical to pseudonym.py) =================
@@ -421,8 +429,15 @@ function parseFile() {
     parsedData = { sheets: wb.SheetNames.map(name => {
       const ws = wb.Sheets[name];
       const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      if (json.length === 0) return { name, headers: [], rows: [] };
-      return { name, headers: json[0].map(String), rows: json.slice(1).map(r => r.map(c => c == null ? '' : String(c))) };
+      if (json.length === 0) return { name, headers: [], rows: [], metaRows: [] };
+      const allRows = json.map(r => r.map(c => c == null ? '' : String(c)));
+      const headerIdx = findHeaderRow(allRows);
+      return {
+        name,
+        headers: allRows[headerIdx],
+        metaRows: allRows.slice(0, headerIdx),
+        rows: allRows.slice(headerIdx + 1)
+      };
     })};
     document.getElementById('sepGroup').classList.add('hidden');
   } else {
@@ -438,8 +453,15 @@ function parseFile() {
     const sep = selVal;
     const result = Papa.parse(text, { delimiter: sep === '\\t' ? '\t' : sep, header: false, skipEmptyLines: false });
     const data = result.data;
-    if (data.length === 0) { parsedData = { sheets: [{ name: 'CSV', headers: [], rows: [] }] }; return; }
-    parsedData = { sheets: [{ name: fileData.name, headers: data[0].map(String), rows: data.slice(1).map(r => r.map(c => c == null ? '' : String(c))) }] };
+    const allRows = data.map(r => r.map(c => c == null ? '' : String(c)));
+    if (allRows.length === 0) { parsedData = { sheets: [{ name: 'CSV', headers: [], rows: [], metaRows: [] }] }; return; }
+    const headerIdx = findHeaderRow(allRows);
+    parsedData = { sheets: [{
+      name: fileData.name,
+      headers: allRows[headerIdx],
+      metaRows: allRows.slice(0, headerIdx),
+      rows: allRows.slice(headerIdx + 1)
+    }] };
     document.getElementById('sepGroup').classList.remove('hidden');
   }
   activeSheet = 0;
@@ -451,7 +473,9 @@ function renderPreview() {
   pc.classList.remove('hidden');
   const tabs = document.getElementById('sheetTabs');
   const totalRows = parsedData.sheets.reduce((s, sh) => s + sh.rows.length, 0);
-  document.getElementById('previewInfo').textContent = `— ${parsedData.sheets.length} Sheet(s), ${totalRows} Zeilen`;
+  const metaCount = parsedData.sheets.reduce((s, sh) => s + (sh.metaRows ? sh.metaRows.length : 0), 0);
+  const metaInfo = metaCount > 0 ? `, ${metaCount} Metadaten-Zeile(n)` : '';
+  document.getElementById('previewInfo').textContent = `— ${parsedData.sheets.length} Sheet(s), ${totalRows} Zeilen${metaInfo}`;
 
   // Tabs
   if (parsedData.sheets.length > 1) {
@@ -541,7 +565,7 @@ async function processFile() {
     if (sheet.headers.length === 0 || sheet.rows.length === 0) {
       log(`  Sheet "${sheet.name}": uebersprungen (leer)`, 'warn');
       sheetsSkipped++;
-      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], rows: sheet.rows.map(r => [...r]) });
+      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
       continue;
     }
 
@@ -549,7 +573,7 @@ async function processFile() {
     if (Object.keys(idCols).length === 0) {
       log(`  Sheet "${sheet.name}": keine Identitaetsspalten erkannt [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
       sheetsSkipped++;
-      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], rows: sheet.rows.map(r => [...r]) });
+      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
       continue;
     }
 
@@ -602,7 +626,7 @@ async function processFile() {
     totalCells += sheetCells;
     sheetsProcessed++;
     log(`    -> ${sheetCells} Zellen verarbeitet`, 'ok');
-    resultSheets.push({ name: sheet.name, headers: [...sheet.headers], rows: newRows });
+    resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: newRows });
   }
 
   pf.style.width = '95%';
@@ -612,7 +636,7 @@ async function processFile() {
   if (fileData.type === 'xlsx') {
     const wb = XLSX.utils.book_new();
     for (const rs of resultSheets) {
-      const data = [rs.headers, ...rs.rows];
+      const data = [...(rs.metaRows || []), rs.headers, ...rs.rows];
       const ws = XLSX.utils.aoa_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, rs.name);
     }
@@ -622,19 +646,30 @@ async function processFile() {
   } else {
     const sep = document.getElementById('sepSelect').value === '\\t' ? '\t' : document.getElementById('sepSelect').value;
     const rs = resultSheets[0];
-    // Detect original quoting from decoded text
+    // Detect quoting from header row, not first line (metadata rows may differ)
     const rawBytes = new Uint8Array(fileData.raw);
-    const origDecoded = new TextDecoder(fileData.encoding).decode(rawBytes.slice(fileData.bomLength, Math.min(fileData.encoding.startsWith('utf-16') ? 2000 : 500, rawBytes.length)));
-    const quoteAll = origDecoded.trimStart().startsWith('"');
+    const origDecoded = new TextDecoder(fileData.encoding).decode(rawBytes.slice(fileData.bomLength));
+    const origLines = origDecoded.includes('\r\n') ? origDecoded.split('\r\n') : origDecoded.split('\n');
+    const headerLineIdx = rs.metaRows ? rs.metaRows.length : 0;
+    const headerLineRaw = (origLines[headerLineIdx] || '').trim();
+    const quoteAll = headerLineRaw.startsWith('"');
 
-    const data = [rs.headers, ...rs.rows];
-    const csvStr = Papa.unparse(data, { delimiter: sep, quotes: quoteAll });
-    // Detect line ending from original
-    const origText = new TextDecoder(fileData.encoding).decode(rawBytes.slice(fileData.bomLength));
-    const useCrlf = origText.includes('\r\n');
-    let finalCsv = csvStr;
-    if (useCrlf && !finalCsv.includes('\r\n')) finalCsv = finalCsv.replace(/\n/g, '\r\n');
-    if (!useCrlf) finalCsv = finalCsv.replace(/\r\n/g, '\n');
+    // Build output: metaRows preserved as raw text
+    const useCrlf = origDecoded.includes('\r\n');
+    const lineEnd = useCrlf ? '\r\n' : '\n';
+    let finalCsv = '';
+
+    // Metadata rows: preserve raw text exactly
+    if (headerLineIdx > 0) {
+      finalCsv = origLines.slice(0, headerLineIdx).join(lineEnd) + lineEnd;
+    }
+
+    // Header + data rows via PapaParse
+    const dataForPapa = [rs.headers, ...rs.rows];
+    let csvStr = Papa.unparse(dataForPapa, { delimiter: sep, quotes: quoteAll });
+    if (useCrlf && !csvStr.includes('\r\n')) csvStr = csvStr.replace(/\n/g, '\r\n');
+    if (!useCrlf) csvStr = csvStr.replace(/\r\n/g, '\n');
+    finalCsv += csvStr;
 
     const parts = [];
     if (fileData.bomLength > 0) parts.push(new Uint8Array(fileData.raw, 0, fileData.bomLength));
