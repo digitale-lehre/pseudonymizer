@@ -170,13 +170,41 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
     text = raw[bom_len:].decode(encoding)
     has_crlf = "\r\n" in text
 
-    # Quoting erkennen (anhand der ersten Zeile des dekodierten Texts)
-    first_line = text.split("\n")[0].strip() if text else ""
-    quoting = csv.QUOTE_ALL if first_line.startswith('"') else csv.QUOTE_MINIMAL
+    # Alle Zeilen als Listen parsen, um Header-Zeile zu finden
+    reader_raw = csv.reader(io.StringIO(text), delimiter=sep)
+    all_rows = list(reader_raw)
 
-    reader = csv.DictReader(io.StringIO(text), delimiter=sep)
-    fieldnames = reader.fieldnames
-    rows = list(reader)
+    if not all_rows:
+        print("FEHLER: Datei ist leer.", file=sys.stderr)
+        sys.exit(1)
+
+    # Header-Zeile finden (kann nach Metadaten-Zeilen liegen, z.B. MLW-Export)
+    header_idx = find_header_row(all_rows)
+    fieldnames = all_rows[header_idx]
+    data_rows_raw = all_rows[header_idx + 1:]
+
+    line_terminator = "\r\n" if has_crlf else "\n"
+
+    # Rohtext-Zeilen fuer Metadaten-Bewahrung und Quoting-Erkennung
+    # (Einfache Zeilen ohne Newlines in Quotes — MLW-Metadaten sind sicher)
+    raw_lines = text.split("\r\n") if has_crlf else text.split("\n")
+
+    # Rohe Metadaten-Zeilen als Text bewahren (fuer byte-identische Ausgabe)
+    meta_raw_text = ""
+    if header_idx > 0:
+        meta_raw_text = line_terminator.join(raw_lines[:header_idx]) + line_terminator
+
+    # Quoting anhand der Header-Zeile erkennen (nicht erste Datei-Zeile!)
+    header_line_raw = raw_lines[header_idx].strip() if header_idx < len(raw_lines) else ""
+    quoting = csv.QUOTE_ALL if header_line_raw.startswith('"') else csv.QUOTE_MINIMAL
+
+    # Konvertiere zu Dicts (wie DictReader)
+    rows = []
+    for raw_row in data_rows_raw:
+        d = {}
+        for i, h in enumerate(fieldnames):
+            d[h] = raw_row[i] if i < len(raw_row) else ""
+        rows.append(d)
 
     if not fieldnames:
         print("FEHLER: Konnte keine Spalten erkennen.", file=sys.stderr)
@@ -206,15 +234,19 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
             name_is_composite = True
             name_order = "vor_fam"
 
-    line_terminator = "\r\n" if has_crlf else "\n"
-
     # Ergebnis in StringIO schreiben, dann mit Original-Encoding ausgeben
     str_out = io.StringIO()
-    writer = csv.DictWriter(
+
+    # Metadaten-Zeilen als Rohtext ausgeben (byte-identisch, nicht re-serialisiert)
+    if meta_raw_text:
+        str_out.write(meta_raw_text)
+
+    # Header + Daten mit DictWriter
+    dict_writer = csv.DictWriter(
         str_out, fieldnames=fieldnames, delimiter=sep,
         quoting=quoting, lineterminator=line_terminator
     )
-    writer.writeheader()
+    dict_writer.writeheader()
     for row in rows:
         new_row = dict(row)
         for canon_key, actual_col in id_cols.items():
@@ -228,7 +260,7 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
                 new_row[name_col] = f"{vor} {fam}".strip()
             else:
                 new_row[name_col] = f"{fam} {vor}".strip()
-        writer.writerow(new_row)
+        dict_writer.writerow(new_row)
 
     output_text = str_out.getvalue()
     with open(output_path, "wb") as f:
@@ -245,6 +277,8 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
     print(f"  Ausgabe:    {output_path}")
     print(f"  Spalten:    {cols_info}")
     print(f"  Encoding:   {encoding.upper()}{' (BOM)' if bom_len > 0 else ''}")
+    if header_idx > 0:
+        print(f"  Metadaten:  {header_idx} Zeile(n) vor Header (unveraendert)")
     print(f"  Verfahren:  AES-256-CBC (deterministisch, PBKDF2)")
     if mode == "encrypt":
         print(f"\n  Zum Zurueckfuehren:")
