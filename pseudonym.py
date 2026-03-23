@@ -26,6 +26,7 @@ import csv
 import hashlib
 import hmac
 import io
+import re
 import sys
 from pathlib import Path
 
@@ -38,24 +39,54 @@ __version__ = "0.3.0"
 # Jeder kanonische Schluessel hat eine Liste von moeglichen Spaltennamen
 COLUMN_ALIASES = {
     "familienname": ["FAMILIENNAME", "Familienname", "familienname", "Zuname", "zuname",
-                     "ZUNAME", "Nachname", "nachname", "NACHNAME", "Last Name", "LastName",
+                     "ZUNAME", "Nachname", "nachname", "NACHNAME",
+                     "Last Name", "LastName", "Last name", "Lastname", "Surname", "surname",
+                     "Family Name", "Family_Name",
                      "FAMILY_NAME_OF_STUDENT", "Family_Name_of_Student",
                      "Familienname oder Nachname",
                      "Familien- oder Nachname"],
-    "vorname":      ["VORNAME", "Vorname", "vorname", "First Name", "FirstName", "Firstname",
+    "vorname":      ["VORNAME", "Vorname", "vorname",
+                     "First Name", "FirstName", "Firstname", "First name",
+                     "Given Name", "GivenName", "Given name", "Rufname",
                      "FIRST_NAME_OF_STUDENT", "First_Name_of_Student"],
     "matnr":        ["MATRIKELNUMMER", "Matrikelnummer", "matrikelnummer", "Matnr", "matnr",
                      "MATNR", "MatrNr", "Matrikel", "matrikel", "MATRIKEL",
-                     "StudentID", "Student_ID",
-                     "REGISTRATION_NUMBER", "Registration_Number", "Registration Number"],
+                     "Matrikelnr", "Matrikelnr.",
+                     "StudentID", "Student_ID", "Student ID",
+                     "REGISTRATION_NUMBER", "Registration_Number", "Registration Number",
+                     "ID number", "ID Number", "ID-Nummer", "Kennnummer"],
     "email":        ["EMAIL_ADDRESS", "Email_Address", "E-Mail", "E-MAIL", "e-mail",
                      "Email", "email", "EMAIL", "Mail", "MAIL", "mail",
                      "E_MAIL", "EmailAddress", "email_address",
+                     "E-Mail-Adresse", "E-Mail Adresse", "Emailadresse", "Mailadresse",
+                     "Email address", "Email Address",
                      "E-Mail des Teilnehmers", "Attendee Email"],
     "pruefer":      ["Examiner", "EXAMINER", "examiner", "Prüfer", "PRÜFER", "prüfer",
-                     "Pruefer", "PRUEFER", "pruefer", "Prufer", "PRUFER"],
+                     "Pruefer", "PRUEFER", "pruefer", "Prufer", "PRUFER",
+                     "Prüfer/in", "PrüferIn", "Prüfer:in"],
     "anzeigename":  ["Anzeigename", "ANZEIGENAME", "anzeigename",
-                     "Display Name", "DisplayName", "DISPLAY NAME", "display name"],
+                     "Display Name", "DisplayName", "DISPLAY NAME", "display name",
+                     "Full Name", "FullName", "Student Name"],
+    "svnr":         ["Sozialversicherungsnummer", "SOZIALVERSICHERUNGSNUMMER",
+                     "SVNr", "SVNR", "SV-Nr", "SV-Nr.", "SV-Nummer", "SV Nummer",
+                     "Versicherungsnummer", "Social Security Number", "SSN"],
+    "geburtsdatum": ["Geburtsdatum", "GEBURTSDATUM", "Geburtstag", "GEBURTSTAG",
+                     "Geb.Datum", "Geb.-Datum", "GebDatum", "Geb. Datum",
+                     "Birthday", "Date of Birth", "DateOfBirth", "DOB",
+                     "Birth Date", "BirthDate", "Birthdate"],
+    "telefon":      ["Telefon", "TELEFON", "Telefonnummer", "TELEFONNUMMER",
+                     "Tel", "Tel.", "Tel.Nr.", "TelNr",
+                     "Phone", "Phone Number", "PhoneNumber",
+                     "Handy", "Handynummer", "Mobilnummer", "Mobile",
+                     "Mobiltelefon", "Cell", "Cell Phone"],
+    # Valuatic Pruefungssoftware — eigene Keys, da examiner + candidate
+    # in derselben Datei vorkommen und unabhaengig verschluesselt werden muessen
+    "examiner_id":        ["examiner_id", "Examiner_ID", "EXAMINER_ID"],
+    "examiner_nachname":  ["examiner_last_name", "Examiner_Last_Name", "EXAMINER_LAST_NAME"],
+    "examiner_vorname":   ["examiner_first_name", "Examiner_First_Name", "EXAMINER_FIRST_NAME"],
+    "candidate_id":       ["candidate_id", "Candidate_ID", "CANDIDATE_ID"],
+    "candidate_nachname": ["candidate_last_name", "Candidate_Last_Name", "CANDIDATE_LAST_NAME"],
+    "candidate_vorname":  ["candidate_first_name", "Candidate_First_Name", "CANDIDATE_FIRST_NAME"],
 }
 NAME_ALIASES = ["NAME", "Name", "name"]
 
@@ -109,16 +140,31 @@ def decrypt_value(key: bytes, token: str) -> str:
         return token
 
 
+_SUFFIX_RE = re.compile(r'\.[a-zA-Z0-9_]+$')
+
+
+def _normalize_header(h: str) -> str:
+    """Entfernt Suffixe wie .x, .y, .1, .2 (z.B. aus R-Merges) von Spaltenheadern."""
+    return _SUFFIX_RE.sub('', h)
+
+
 def find_identity_cols(headers: list) -> dict:
     """Findet Identitaetsspalten anhand verschiedener Namenskonventionen (case-insensitive).
-    Gibt dict zurueck: {kanonischer_key: tatsaechlicher_spaltenname}"""
+    Spaltenheader werden vor dem Matching normalisiert: Suffixe wie .x, .y (R-Merges)
+    werden entfernt. Gibt dict zurueck: {kanonischer_key: tatsaechlicher_spaltenname}"""
     found = {}
     # Baue case-insensitive Lookup: lower(header) -> header
+    # Versuche zuerst exakt, dann mit Suffix-Stripping
     header_lower = {h.strip().lower(): h for h in headers if h}
+    header_norm = {_normalize_header(h.strip()).lower(): h for h in headers if h}
     for canon_key, aliases in COLUMN_ALIASES.items():
         for alias in aliases:
-            if alias.lower() in header_lower:
-                found[canon_key] = header_lower[alias.lower()]
+            al = alias.lower()
+            if al in header_lower:
+                found[canon_key] = header_lower[al]
+                break
+            if al in header_norm:
+                found[canon_key] = header_norm[al]
                 break
     return found
 

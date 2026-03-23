@@ -2,7 +2,7 @@
 
 AES-256-CBC Pseudonymisierung fuer CSV- und XLSX-Dateien.
 
-Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer) durch verschluesselte Pseudonyme. Gleicher Secret = gleiche Pseudonyme, umkehrbar mit demselben Secret.
+Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) durch verschluesselte Pseudonyme. Gleicher Secret = gleiche Pseudonyme, umkehrbar mit demselben Secret.
 
 > **Detaillierte Dokumentation:** [docs/index.md](docs/index.md) | **Schritt-fuer-Schritt-Anleitung:** [ANLEITUNG_pseudonym.md](ANLEITUNG_pseudonym.md)
 
@@ -46,13 +46,26 @@ Das Tool erkennt automatisch verschiedene Schreibweisen (case-insensitive):
 
 | Spaltentyp | Erkannte Spaltennamen |
 |---|---|
-| **Familienname** | FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname, Familien- oder Nachname |
-| **Vorname** | VORNAME, FirstName, FIRST_NAME_OF_STUDENT, First Name |
-| **Matrikelnummer** | MATRIKELNUMMER, Matnr, REGISTRATION_NUMBER, StudentID, Matrikel |
-| **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, E-Mail des Teilnehmers, Attendee Email |
-| **Pruefer** | Examiner, Pruefer, Pruefer |
-| **Anzeigename** | Anzeigename, Display Name, DisplayName |
+| **Familienname** | FAMILIENNAME, Zuname, Nachname, Surname, Family Name, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname, Familien- oder Nachname |
+| **Vorname** | VORNAME, FirstName, FIRST_NAME_OF_STUDENT, First Name, Given Name, GivenName, Rufname |
+| **Matrikelnummer** | MATRIKELNUMMER, Matnr, Matrikelnr, Matrikelnr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer |
+| **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, E-Mail Adresse, Emailadresse, Mailadresse, Attendee Email |
+| **Pruefer** | Examiner, Pruefer, Pruefer, Pruefer/in, PrueferIn, Pruefer:in |
+| **Anzeigename** | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |
+| **SV-Nummer** | Sozialversicherungsnummer, SVNr, SVNR, SV-Nr, SV-Nr., SV-Nummer, Versicherungsnummer, SSN |
+| **Geburtsdatum** | Geburtsdatum, Geburtstag, Geb.Datum, Geb.-Datum, Birthday, Date of Birth, DOB, Birth Date |
+| **Telefon** | Telefon, Telefonnummer, Tel, Tel., Phone, Phone Number, Handy, Handynummer, Mobilnummer, Mobile, Cell Phone |
 | **Name** *(optional)* | NAME — automatisch aus Familienname + Vorname zusammengesetzt |
+| **Examiner ID** *(Valuatic)* | examiner_id, Examiner_ID, EXAMINER_ID |
+| **Examiner Nachname** *(Valuatic)* | examiner_last_name, Examiner_Last_Name, EXAMINER_LAST_NAME |
+| **Examiner Vorname** *(Valuatic)* | examiner_first_name, Examiner_First_Name, EXAMINER_FIRST_NAME |
+| **Candidate ID** *(Valuatic)* | candidate_id, Candidate_ID, CANDIDATE_ID |
+| **Candidate Nachname** *(Valuatic)* | candidate_last_name, Candidate_Last_Name, CANDIDATE_LAST_NAME |
+| **Candidate Vorname** *(Valuatic)* | candidate_first_name, Candidate_First_Name, CANDIDATE_FIRST_NAME |
+
+Die Valuatic-Spalten verwenden eigene Schluessel, da Pruefer- und Kandidatendaten in derselben Datei vorkommen und unabhaengig verschluesselt werden muessen.
+
+**Suffix-Stripping:** Suffixe wie `.x`, `.y`, `.1`, `.2` (aus R-Merge-Operationen) werden vor dem Abgleich automatisch entfernt. Z.B. wird `Vorname.x` als `Vorname` erkannt.
 
 Vollstaendige Liste: [Spalten-Referenz](docs/column-reference.md)
 

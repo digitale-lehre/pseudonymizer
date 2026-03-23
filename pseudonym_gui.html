@@ -194,15 +194,22 @@ td.changed { background: var(--orange-bg); }
           <button class="info-btn" id="infoBtn">?</button>
           <div class="info-popup" id="infoPopup">
             <strong>Erkannte Identitaetsspalten (case-insensitive):</strong>
+            <p style="margin:.4rem 0;font-size:.7rem;color:var(--text2);">Suffixe wie .x, .y (R-Merges) werden automatisch entfernt.</p>
             <table style="margin-top:.5rem;">
               <tr><th>Typ</th><th>Spaltennamen</th></tr>
-              <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Familienname oder Nachname, Familien- oder Nachname</td></tr>
-              <tr><td>Vorname</td><td>VORNAME, FirstName, FIRST_NAME_OF_STUDENT</td></tr>
-              <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, REGISTRATION_NUMBER</td></tr>
-              <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, Email, Mail, E-Mail des Teilnehmers, Attendee Email</td></tr>
-              <tr><td>Pruefer</td><td>Examiner, Pruefer, Prüfer</td></tr>
-              <tr><td>Anzeigename</td><td>Anzeigename, Display Name, DisplayName</td></tr>
+              <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, Surname, Last Name, Family Name, FAMILY_NAME_OF_STUDENT, Familienname oder Nachname</td></tr>
+              <tr><td>Vorname</td><td>VORNAME, First Name, Given Name, Rufname, FIRST_NAME_OF_STUDENT</td></tr>
+              <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, Matrikelnr, Student ID, REGISTRATION_NUMBER, ID number, ID-Nummer, Kennnummer</td></tr>
+              <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, E-Mail-Adresse, Emailadresse, Mailadresse, Email address, Attendee Email</td></tr>
+              <tr><td>SV-Nr.</td><td>Sozialversicherungsnummer, SVNr, SV-Nr, SV-Nummer, Versicherungsnummer, SSN</td></tr>
+              <tr><td>Geburtsdatum</td><td>Geburtsdatum, Geburtstag, Geb.Datum, Birthday, Date of Birth, DOB</td></tr>
+              <tr><td>Telefon</td><td>Telefon, Telefonnummer, Tel, Phone, Handy, Mobilnummer, Mobile</td></tr>
+              <tr><td>Pruefer</td><td>Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in</td></tr>
+              <tr><td>Anzeigename</td><td>Anzeigename, Display Name, Full Name, Student Name</td></tr>
               <tr><td>Name</td><td>NAME — auto-composite aus Familienname + Vorname</td></tr>
+              <tr><td colspan="2" style="padding-top:.5rem;font-weight:600;">Valuatic</td></tr>
+              <tr><td>Examiner</td><td>examiner_id, examiner_last_name, examiner_first_name</td></tr>
+              <tr><td>Candidate</td><td>candidate_id, candidate_last_name, candidate_first_name</td></tr>
             </table>
           </div>
         </div>
@@ -270,31 +277,66 @@ let lastResultSheets = null;
 // ================= COLUMN ALIASES (identical to pseudonym.py) =================
 const COLUMN_ALIASES = {
   familienname: ["FAMILIENNAME","Familienname","familienname","Zuname","zuname","ZUNAME",
-    "Nachname","nachname","NACHNAME","Last Name","LastName",
+    "Nachname","nachname","NACHNAME",
+    "Last Name","LastName","Last name","Lastname","Surname","surname",
+    "Family Name","Family_Name",
     "FAMILY_NAME_OF_STUDENT","Family_Name_of_Student",
     "Familienname oder Nachname","Familien- oder Nachname"],
-  vorname: ["VORNAME","Vorname","vorname","First Name","FirstName","Firstname",
+  vorname: ["VORNAME","Vorname","vorname",
+    "First Name","FirstName","Firstname","First name",
+    "Given Name","GivenName","Given name","Rufname",
     "FIRST_NAME_OF_STUDENT","First_Name_of_Student"],
   matnr: ["MATRIKELNUMMER","Matrikelnummer","matrikelnummer","Matnr","matnr","MATNR",
-    "MatrNr","Matrikel","matrikel","MATRIKEL","StudentID","Student_ID",
-    "REGISTRATION_NUMBER","Registration_Number","Registration Number"],
+    "MatrNr","Matrikel","matrikel","MATRIKEL","Matrikelnr","Matrikelnr.",
+    "StudentID","Student_ID","Student ID",
+    "REGISTRATION_NUMBER","Registration_Number","Registration Number",
+    "ID number","ID Number","ID-Nummer","Kennnummer"],
   email: ["EMAIL_ADDRESS","Email_Address","E-Mail","E-MAIL","e-mail","Email","email",
     "EMAIL","Mail","MAIL","mail","E_MAIL","EmailAddress","email_address",
+    "E-Mail-Adresse","E-Mail Adresse","Emailadresse","Mailadresse",
+    "Email address","Email Address",
     "E-Mail des Teilnehmers","Attendee Email"],
   pruefer: ["Examiner","EXAMINER","examiner","Prüfer","PRÜFER","prüfer",
-    "Pruefer","PRUEFER","pruefer","Prufer","PRUFER"],
+    "Pruefer","PRUEFER","pruefer","Prufer","PRUFER",
+    "Prüfer/in","PrüferIn","Prüfer:in"],
   anzeigename: ["Anzeigename","ANZEIGENAME","anzeigename",
-    "Display Name","DisplayName","DISPLAY NAME","display name"]
+    "Display Name","DisplayName","DISPLAY NAME","display name",
+    "Full Name","FullName","Student Name"],
+  svnr: ["Sozialversicherungsnummer","SOZIALVERSICHERUNGSNUMMER",
+    "SVNr","SVNR","SV-Nr","SV-Nr.","SV-Nummer","SV Nummer",
+    "Versicherungsnummer","Social Security Number","SSN"],
+  geburtsdatum: ["Geburtsdatum","GEBURTSDATUM","Geburtstag","GEBURTSTAG",
+    "Geb.Datum","Geb.-Datum","GebDatum","Geb. Datum",
+    "Birthday","Date of Birth","DateOfBirth","DOB",
+    "Birth Date","BirthDate","Birthdate"],
+  telefon: ["Telefon","TELEFON","Telefonnummer","TELEFONNUMMER",
+    "Tel","Tel.","Tel.Nr.","TelNr",
+    "Phone","Phone Number","PhoneNumber",
+    "Handy","Handynummer","Mobilnummer","Mobile",
+    "Mobiltelefon","Cell","Cell Phone"],
+  // Valuatic Pruefungssoftware
+  examiner_id: ["examiner_id","Examiner_ID","EXAMINER_ID"],
+  examiner_nachname: ["examiner_last_name","Examiner_Last_Name","EXAMINER_LAST_NAME"],
+  examiner_vorname: ["examiner_first_name","Examiner_First_Name","EXAMINER_FIRST_NAME"],
+  candidate_id: ["candidate_id","Candidate_ID","CANDIDATE_ID"],
+  candidate_nachname: ["candidate_last_name","Candidate_Last_Name","CANDIDATE_LAST_NAME"],
+  candidate_vorname: ["candidate_first_name","Candidate_First_Name","CANDIDATE_FIRST_NAME"]
 };
 const NAME_ALIASES = ["NAME","Name","name"];
+const SUFFIX_RE = /\.[a-zA-Z0-9_]+$/;
+function normalizeHeader(h) { return h.replace(SUFFIX_RE, ''); }
 
 function findIdentityCols(headers) {
   const lower = {};
   headers.forEach(h => { if (h) lower[h.trim().toLowerCase()] = h; });
+  const norm = {};
+  headers.forEach(h => { if (h) norm[normalizeHeader(h.trim()).toLowerCase()] = h; });
   const found = {};
   for (const [canon, aliases] of Object.entries(COLUMN_ALIASES)) {
     for (const a of aliases) {
-      if (a.toLowerCase() in lower) { found[canon] = lower[a.toLowerCase()]; break; }
+      const al = a.toLowerCase();
+      if (al in lower) { found[canon] = lower[al]; break; }
+      if (al in norm) { found[canon] = norm[al]; break; }
     }
   }
   return found;

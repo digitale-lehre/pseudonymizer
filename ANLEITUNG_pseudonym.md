@@ -2,7 +2,7 @@
 
 ## Was macht das Tool?
 
-Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV- und XLSX-Dateien. Personenbezogene Spalten (Familienname, Vorname, Matrikelnummer, E-Mail, Pruefer) werden durch verschluesselte Werte ersetzt, die nur mit dem richtigen Secret zurueckgefuehrt werden koennen.
+Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV- und XLSX-Dateien. Personenbezogene Spalten (Familienname, Vorname, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) werden durch verschluesselte Werte ersetzt, die nur mit dem richtigen Secret zurueckgefuehrt werden koennen.
 
 **Verfahren:** AES-256-CBC (symmetrische Verschluesselung, deterministisch mit PBKDF2-Schluesselableitung). Es wird keine separate Key-Datei benoetigt — derselbe Secret verschluesselt und entschluesselt.
 
@@ -87,13 +87,26 @@ Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (
 
 | Spaltentyp | Erkannte Spaltennamen |
 |---|---|
-| Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName`, `Familienname oder Nachname`, `Familien- oder Nachname` |
-| Vorname | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`, `First Name` |
-| Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `REGISTRATION_NUMBER`, `StudentID`, `Matrikel` |
-| E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL`, `E-Mail des Teilnehmers`, `Attendee Email` |
-| Pruefer/Examiner | `Examiner`, `Pruefer`, `Pruefer`, `EXAMINER` |
-| Anzeigename | `Anzeigename`, `Display Name`, `DisplayName` |
+| Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `Surname`, `Family Name`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName`, `Familienname oder Nachname`, `Familien- oder Nachname` |
+| Vorname | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`, `First Name`, `Given Name`, `GivenName`, `Rufname` |
+| Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `Matrikelnr`, `Matrikelnr.`, `REGISTRATION_NUMBER`, `StudentID`, `Student ID`, `Matrikel`, `Kennnummer` |
+| E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL`, `E-Mail Adresse`, `Emailadresse`, `Mailadresse`, `Attendee Email`, `E-Mail-Adresse` |
+| Pruefer/Examiner | `Examiner`, `Pruefer`, `Pruefer`, `Pruefer/in`, `PrueferIn`, `Pruefer:in`, `EXAMINER` |
+| Anzeigename | `Anzeigename`, `Display Name`, `DisplayName`, `Full Name`, `FullName`, `Student Name` |
+| SV-Nummer | `Sozialversicherungsnummer`, `SVNr`, `SVNR`, `SV-Nr`, `SV-Nr.`, `SV-Nummer`, `Versicherungsnummer`, `SSN` |
+| Geburtsdatum | `Geburtsdatum`, `Geburtstag`, `Geb.Datum`, `Geb.-Datum`, `Birthday`, `Date of Birth`, `DOB`, `Birth Date` |
+| Telefon | `Telefon`, `Telefonnummer`, `Tel`, `Tel.`, `Phone`, `Phone Number`, `Handy`, `Handynummer`, `Mobilnummer`, `Mobile`, `Cell Phone` |
 | Name (optional) | `NAME` — wird automatisch aus Familienname + Vorname zusammengesetzt, falls erkannt |
+| Examiner ID (Valuatic) | `examiner_id`, `Examiner_ID`, `EXAMINER_ID` |
+| Examiner Nachname (Valuatic) | `examiner_last_name`, `Examiner_Last_Name`, `EXAMINER_LAST_NAME` |
+| Examiner Vorname (Valuatic) | `examiner_first_name`, `Examiner_First_Name`, `EXAMINER_FIRST_NAME` |
+| Candidate ID (Valuatic) | `candidate_id`, `Candidate_ID`, `CANDIDATE_ID` |
+| Candidate Nachname (Valuatic) | `candidate_last_name`, `Candidate_Last_Name`, `CANDIDATE_LAST_NAME` |
+| Candidate Vorname (Valuatic) | `candidate_first_name`, `Candidate_First_Name`, `CANDIDATE_FIRST_NAME` |
+
+Die Valuatic-Spalten verwenden eigene Schluessel (`examiner_nachname` statt `familienname` etc.), da Pruefer- und Kandidatendaten in derselben Datei vorkommen und unabhaengig voneinander verschluesselt werden muessen.
+
+**Suffix-Stripping:** Suffixe wie `.x`, `.y`, `.1`, `.2` (aus R-Merge-Operationen) werden vor dem Abgleich automatisch entfernt. Z.B. wird `Vorname.x` als `Vorname` erkannt.
 
 Es muessen nicht alle Spalten vorhanden sein. Das Tool verschluesselt nur die gefundenen Identitaetsspalten. Alle anderen Spalten bleiben unveraendert.
 

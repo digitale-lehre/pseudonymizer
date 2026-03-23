@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tool for pseudonymizing and de-pseudonymizing personal data (names, student IDs, email addresses, examiner names) in CSV and XLSX files. Used at MedUni Wien for handling student data in tertial assignment workflows.
+Tool for pseudonymizing and de-pseudonymizing personal data (names, student IDs, email addresses, examiner names, social security numbers, dates of birth, phone numbers) in CSV and XLSX files. Used at MedUni Wien for handling student data in tertial assignment workflows.
 
 Two implementations exist — a Python CLI (`pseudonym.py`) and a standalone browser GUI (`pseudonym_gui.html`). Both use identical cryptography and must always produce the same output for the same input and secret.
 
@@ -29,12 +29,25 @@ docs/                   Wiki-style documentation (column-reference, cryptography
 
 | Canonical key | Aliases |
 |--------------|---------|
-| familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname, Familien- oder Nachname |
-| vorname | VORNAME, Vorname, FirstName, FIRST_NAME_OF_STUDENT, First Name |
-| matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, REGISTRATION_NUMBER, StudentID, Matrikel |
-| email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL, E-Mail des Teilnehmers, Attendee Email |
-| pruefer | Examiner, Pruefer, Prüfer |
-| anzeigename | Anzeigename, Display Name, DisplayName |
+| familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Last name, Lastname, Surname, Family Name, Family_Name, Familienname oder Nachname, Familien- oder Nachname |
+| vorname | VORNAME, Vorname, FirstName, FIRST_NAME_OF_STUDENT, First Name, First name, Given Name, GivenName, Given name, Rufname |
+| matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, Matrikelnr, Matrikelnr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer, ID number, ID Number, ID-Nummer |
+| email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL, E-Mail des Teilnehmers, Attendee Email, E-Mail-Adresse, E-Mail Adresse, Emailadresse, Mailadresse, Email address, Email Address |
+| pruefer | Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in |
+| anzeigename | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |
+| svnr | Sozialversicherungsnummer, SVNr, SVNR, SV-Nr, SV-Nr., SV-Nummer, SV Nummer, Versicherungsnummer, Social Security Number, SSN |
+| geburtsdatum | Geburtsdatum, Geburtstag, Geb.Datum, Geb.-Datum, GebDatum, Geb. Datum, Birthday, Date of Birth, DateOfBirth, DOB, Birth Date, BirthDate, Birthdate |
+| telefon | Telefon, Telefonnummer, Tel, Tel., Tel.Nr., TelNr, Phone, Phone Number, PhoneNumber, Handy, Handynummer, Mobilnummer, Mobile, Mobiltelefon, Cell, Cell Phone |
+| examiner_id | examiner_id, Examiner_ID, EXAMINER_ID |
+| examiner_nachname | examiner_last_name, Examiner_Last_Name, EXAMINER_LAST_NAME |
+| examiner_vorname | examiner_first_name, Examiner_First_Name, EXAMINER_FIRST_NAME |
+| candidate_id | candidate_id, Candidate_ID, CANDIDATE_ID |
+| candidate_nachname | candidate_last_name, Candidate_Last_Name, CANDIDATE_LAST_NAME |
+| candidate_vorname | candidate_first_name, Candidate_First_Name, CANDIDATE_FIRST_NAME |
+
+Valuatic exam software columns use separate canonical keys (e.g., `examiner_nachname` vs `familienname`) because examiner and candidate data appear in the same file and must be encrypted independently.
+
+**Suffix stripping:** Before matching, suffixes like `.x`, `.y`, `.1`, `.2` (from R merge operations) are automatically stripped from column headers. E.g., `Vorname.x` matches as `Vorname`.
 
 `NAME` column: auto-detected as composite of familienname + vorname (checked against first data row). Preserves original order ("Vorname Nachname" vs "Nachname Vorname"). Note: `Anzeigename`/`Display Name` is NOT a composite — it is encrypted independently (Webex display names may differ from Vorname + Nachname).
 
