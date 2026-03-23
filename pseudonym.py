@@ -33,7 +33,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # Spaltennamen-Mapping: verschiedene Schreibweisen -> kanonischer Schluessel
 # Jeder kanonische Schluessel hat eine Liste von moeglichen Spaltennamen
