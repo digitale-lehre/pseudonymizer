@@ -12,8 +12,9 @@ Two implementations exist — a Python CLI (`pseudonym.py`) and a standalone bro
 
 ```
 pseudonym.py            Python CLI (requires cryptography, openpyxl)
-pseudonym_gui.html      Single-file browser app (Web Crypto API + SheetJS + PapaParse via CDN)
+pseudonym_gui.html      Single-file browser app (Web Crypto API + SheetJS + PapaParse + JSZip via CDN)
 ANLEITUNG_pseudonym.md  German-language user documentation
+tests/test_batch.py     pytest tests for batch functions (process_file, ZIP I/O, etc.)
 docs/                   Wiki-style documentation (column-reference, cryptography, troubleshooting, etc.)
 ```
 
@@ -83,6 +84,23 @@ python pseudonym.py decrypt input_pseudo.csv --secret "test"
 diff input.csv input_pseudo_restored.csv
 ```
 
+```bash
+# Batch encrypt
+python pseudonym.py encrypt file1.csv file2.csv --secret "test"
+
+# ZIP input
+python pseudonym.py encrypt archive.zip --secret "test"
+
+# ZIP output
+python pseudonym.py encrypt *.csv --secret "test" --zip
+
+# Encrypt with extra columns
+python pseudonym.py encrypt input.csv --secret "test" --extra-cols "Kommentar,Notiz"
+
+# Run tests
+python -m pytest tests/test_batch.py -v
+```
+
 The browser GUI requires no build step — open `pseudonym_gui.html` in any modern browser.
 
 ## Cross-Implementation Compatibility Test
@@ -110,7 +128,7 @@ The HTML GUI must produce the same token for the same input and secret.
 
 ### HTML/JS (pseudonym_gui.html)
 - Single self-contained HTML file — all CSS and JS inline
-- External libraries via CDN only (cdnjs.cloudflare.com): PapaParse, SheetJS
+- External libraries via CDN only (cdnjs.cloudflare.com): PapaParse, SheetJS, JSZip
 - Web Crypto API for all cryptographic operations (no polyfills)
 - Vanilla JS, no framework
 - CSS custom properties for dark/light theming

@@ -10,7 +10,7 @@ Die Browser-GUI (`pseudonym_gui.html`) benoetigt **keine Installation**. Einfach
 
 **Voraussetzungen:** Ein moderner Browser (Chrome, Firefox, Edge, Safari). Alle gaengigen Versionen der letzten Jahre werden unterstuetzt.
 
-**Hinweis:** Die GUI laedt zwei kleine JavaScript-Bibliotheken (PapaParse, SheetJS) von einem CDN. Beim ersten Start ist daher eine Internetverbindung noetig. Danach werden die Bibliotheken aus dem Browser-Cache geladen.
+**Hinweis:** Die GUI laedt drei kleine JavaScript-Bibliotheken (PapaParse, SheetJS, JSZip) von einem CDN. Beim ersten Start ist daher eine Internetverbindung noetig. Danach werden die Bibliotheken aus dem Browser-Cache geladen.
 
 
 ## Python CLI
@@ -54,7 +54,7 @@ pip install cryptography openpyxl
 python pseudonym.py --version
 ```
 
-Erwartete Ausgabe: `pseudonym.py 0.1.0`
+Erwartete Ausgabe: `pseudonym.py 0.5.0`
 
 ### Optionale virtuelle Umgebung
 

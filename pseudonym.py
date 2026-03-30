@@ -33,7 +33,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # Spaltennamen-Mapping: verschiedene Schreibweisen -> kanonischer Schluessel
 # Jeder kanonische Schluessel hat eine Liste von moeglichen Spaltennamen
@@ -205,7 +205,7 @@ def detect_file_encoding(raw: bytes) -> tuple:
     return "utf-8", 0
 
 
-def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: str = ","):
+def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: str = ",", extra_cols: list = None):
     key = derive_key(secret)
     transform = encrypt_value if mode == "encrypt" else decrypt_value
 
@@ -258,6 +258,17 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
         sys.exit(1)
 
     id_cols = find_identity_cols(fieldnames)
+
+    # Zusaetzliche benutzerdefinierte Spalten einmischen
+    if extra_cols:
+        existing_vals = set(id_cols.values())
+        for col_name in extra_cols:
+            for h in fieldnames:
+                if h.strip().lower() == col_name.strip().lower() and h not in existing_vals:
+                    id_cols[f"_custom_{col_name}"] = h
+                    existing_vals.add(h)
+                    break
+
     name_col = find_name_col(fieldnames)
     if not id_cols:
         print(f"FEHLER: Keine Identitaetsspalten gefunden.", file=sys.stderr)
@@ -391,7 +402,7 @@ def _fix_xlsx_drawings(input_path: str) -> str:
         return tmp_path
 
 
-def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
+def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extra_cols: list = None):
     from openpyxl import load_workbook
     from copy import copy
 
@@ -431,6 +442,17 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         header_row_num = header_offset + 1
 
         id_cols = find_identity_cols(headers)
+
+        # Zusaetzliche benutzerdefinierte Spalten einmischen
+        if extra_cols:
+            existing_vals = set(id_cols.values())
+            for col_name in extra_cols:
+                for h in headers:
+                    if h.strip().lower() == col_name.strip().lower() and h not in existing_vals:
+                        id_cols[f"_custom_{col_name}"] = h
+                        existing_vals.add(h)
+                        break
+
         if not id_cols:
             # Warnung ausgeben, aber nicht abbrechen
             sheets_skipped.append(f"{ws.title} (keine Identitaetsspalten erkannt: {[h for h in headers if h]})")
@@ -519,6 +541,81 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         print(f"  python pseudonym.py decrypt {output_path} --secret <IhrSecret>")
 
 
+# ======================== BATCH HELPERS ========================
+
+def collect_input_files(paths: list) -> list:
+    """Sammelt Eingabedateien. ZIP-Archive werden entpackt (nur CSV/XLSX).
+    Gibt Liste von Path-Objekten zurueck (ggf. in tempdir extrahiert)."""
+    import zipfile
+    import tempfile
+
+    SUPPORTED = {".csv", ".tsv", ".txt", ".xlsx"}
+    ZIP_EXTRACT = {".csv", ".tsv", ".xlsx"}
+    collected = []
+
+    for p in paths:
+        p = Path(p)
+        if p.suffix.lower() == ".zip":
+            tmpdir = Path(tempfile.mkdtemp(prefix="pseudo_zip_"))
+            with zipfile.ZipFile(p, "r") as zf:
+                for member in zf.namelist():
+                    if member.endswith("/") or Path(member).name.startswith("."):
+                        continue
+                    ext = Path(member).suffix.lower()
+                    if ext in ZIP_EXTRACT:
+                        target = tmpdir / Path(member).name
+                        counter = 1
+                        while target.exists():
+                            stem = Path(member).stem
+                            target = tmpdir / f"{stem}_{counter}{ext}"
+                            counter += 1
+                        with open(target, "wb") as f:
+                            f.write(zf.read(member))
+                        collected.append(target)
+            if not any(f.parent == tmpdir for f in collected):
+                import shutil
+                shutil.rmtree(tmpdir, ignore_errors=True)
+        elif p.suffix.lower() in SUPPORTED:
+            collected.append(p)
+
+    return collected
+
+
+def create_output_zip(results: list, zip_path: str):
+    """Buendelt Ergebnisdateien in ein ZIP-Archiv.
+    results: Liste von (input_path, output_path) Tupeln."""
+    import zipfile
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for _, output_path in results:
+            zf.write(output_path, Path(output_path).name)
+    print(f"\n  ZIP erstellt: {zip_path}")
+
+
+def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
+    """Erzeugt Ausgabepfad: <name>_pseudo.<ext> bzw. <name>_restored.<ext>.
+    Optional in ein anderes Verzeichnis (output_dir)."""
+    p = Path(input_path)
+    suffix = "_pseudo" if mode == "encrypt" else "_restored"
+    name = f"{p.stem}{suffix}{p.suffix}"
+    if output_dir:
+        return str(Path(output_dir) / name)
+    return str(p.with_name(name))
+
+
+# ======================== DISPATCH ========================
+
+def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ",", extra_cols: list = None):
+    """Verarbeitet eine einzelne CSV/XLSX-Datei (Dispatch nach Dateityp)."""
+    ext = Path(input_path).suffix.lower()
+    if ext == ".xlsx":
+        process_xlsx(input_path, output_path, secret, mode, extra_cols=extra_cols)
+    elif ext in (".csv", ".tsv", ".txt"):
+        process_csv(input_path, output_path, secret, mode, sep, extra_cols=extra_cols)
+    else:
+        raise ValueError(f"Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .tsv, .txt, .xlsx")
+
+
 # ======================== MAIN ========================
 
 if __name__ == "__main__":
@@ -528,31 +625,90 @@ if __name__ == "__main__":
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("mode", choices=["encrypt", "decrypt"],
                         help="encrypt = pseudonymisieren, decrypt = zurueckfuehren")
-    parser.add_argument("input", help="Pfad zur CSV- oder XLSX-Datei")
+    parser.add_argument("input", nargs="+",
+                        help="Pfad(e) zu CSV/XLSX/ZIP-Datei(en)")
     parser.add_argument("--secret", required=True, help="Ihr geheimer Schluessel")
     parser.add_argument("--output", "-o",
-                        help="Ausgabepfad (Standard: <name>_pseudo.<ext> bzw. <name>_restored.<ext>)")
+                        help="Ausgabepfad (nur bei einzelner Datei)")
+    parser.add_argument("--output-dir",
+                        help="Ausgabeverzeichnis fuer Batch-Modus")
+    parser.add_argument("--zip", action="store_true",
+                        help="Ergebnis als ZIP-Datei buendeln")
     parser.add_argument("--sep", "-s", default=",",
                         help="CSV-Trennzeichen (Standard: Komma, wird bei XLSX ignoriert)")
+    parser.add_argument("--extra-cols",
+                        help="Zusaetzliche Spalten verschluesseln (kommagetrennt, z.B. 'Kommentar,Notiz')")
     args = parser.parse_args()
 
-    inp = Path(args.input)
-    if not inp.exists():
-        print(f"FEHLER: Datei nicht gefunden: {inp}", file=sys.stderr)
+    extra_cols = [c.strip() for c in args.extra_cols.split(",")] if args.extra_cols else None
+
+    # --output nur bei einzelner Datei
+    if args.output and len(args.input) > 1:
+        print("FEHLER: --output nur bei einzelner Datei moeglich. "
+              "Verwenden Sie --output-dir fuer Batch.", file=sys.stderr)
         sys.exit(1)
 
-    if args.output:
-        out = args.output
-    elif args.mode == "encrypt":
-        out = str(inp.with_name(f"{inp.stem}_pseudo{inp.suffix}"))
-    else:
-        out = str(inp.with_name(f"{inp.stem}_restored{inp.suffix}"))
+    # Pruefen ob alle Eingabedateien existieren
+    for p in args.input:
+        if not Path(p).exists():
+            print(f"FEHLER: Datei nicht gefunden: {p}", file=sys.stderr)
+            sys.exit(1)
 
-    ext = inp.suffix.lower()
-    if ext == ".xlsx":
-        process_xlsx(args.input, out, args.secret, args.mode)
-    elif ext in (".csv", ".tsv", ".txt"):
-        process_csv(args.input, out, args.secret, args.mode, args.sep)
-    else:
-        print(f"FEHLER: Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .xlsx", file=sys.stderr)
+    # Dateien sammeln (ZIP-Archive werden entpackt)
+    all_files = collect_input_files(args.input)
+    if not all_files:
+        print("FEHLER: Keine verarbeitbaren Dateien gefunden (CSV/XLSX).", file=sys.stderr)
+        sys.exit(1)
+
+    if len(all_files) > 1:
+        print(f"\nBatch-Modus: {len(all_files)} Datei(en)\n")
+
+    results = []
+    for f in all_files:
+        if args.output and len(all_files) == 1:
+            out = args.output
+        else:
+            out = make_output_path(f, args.mode, args.output_dir)
+        try:
+            process_file(str(f), out, args.secret, args.mode, args.sep, extra_cols=extra_cols)
+            results.append((str(f), out, True, None))
+        except Exception as e:
+            print(f"\nFEHLER bei {f.name}: {e}", file=sys.stderr)
+            results.append((str(f), None, False, str(e)))
+
+    # ZIP-Ausgabe
+    if args.zip:
+        successful = [(r[0], r[1]) for r in results if r[2]]
+        if successful:
+            first_input = Path(successful[0][0])
+            if args.output_dir:
+                zip_dir = args.output_dir
+            else:
+                zip_dir = str(first_input.parent)
+            zip_name = str(Path(zip_dir) / f"batch_{args.mode}_{len(successful)}files.zip")
+            create_output_zip(successful, zip_name)
+
+    # Zusammenfassung bei Batch
+    if len(all_files) > 1:
+        ok = sum(1 for r in results if r[2])
+        fail = len(results) - ok
+        print(f"\n{'='*50}")
+        print(f"Batch abgeschlossen: {ok} erfolgreich, {fail} fehlgeschlagen")
+        if fail > 0:
+            for inp, _, success, err in results:
+                if not success:
+                    print(f"  FEHLER: {Path(inp).name}: {err}")
+        print(f"{'='*50}")
+
+    # Temp-Verzeichnisse aufraeumen (aus ZIP-Extraktion)
+    import shutil
+    cleaned = set()
+    for f in all_files:
+        if "pseudo_zip_" in str(f.parent):
+            d = str(f.parent)
+            if d not in cleaned:
+                shutil.rmtree(d, ignore_errors=True)
+                cleaned.add(d)
+
+    if any(not r[2] for r in results):
         sys.exit(1)

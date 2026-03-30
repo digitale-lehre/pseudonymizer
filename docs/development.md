@@ -17,10 +17,11 @@ Beide muessen **immer** die gleichen Ergebnisse fuer gleiche Eingaben liefern.
 | Bereich | Funktionen |
 |---|---|
 | **Kryptographie** | `derive_key()`, `deterministic_iv()`, `encrypt_value()`, `decrypt_value()` |
-| **Spalten-Erkennung** | `find_identity_cols()`, `find_name_col()` |
-| **CSV-Verarbeitung** | `detect_quoting()`, `detect_encoding()`, `process_csv()` |
+| **Spalten-Erkennung** | `find_identity_cols()`, `find_name_col()`, `find_header_row()` |
+| **CSV-Verarbeitung** | `detect_file_encoding()`, `process_csv()` |
 | **XLSX-Verarbeitung** | `_fix_xlsx_drawings()`, `process_xlsx()` |
-| **CLI** | `argparse`-Setup im `__main__`-Block |
+| **Batch** | `process_file()`, `collect_input_files()`, `make_output_path()`, `create_output_zip()` |
+| **CLI** | `argparse`-Setup im `__main__`-Block (unterstuetzt `nargs="+"`, `--output-dir`, `--zip`) |
 
 **Konventionen:**
 - Python 3.8+ kompatibel
@@ -36,18 +37,29 @@ Einzelne HTML-Datei mit eingebettetem CSS und JavaScript.
 |---|---|
 | **CSS** | Custom Properties fuer Dark/Light Mode, responsives Layout |
 | **Kryptographie** | Web Crypto API: `deriveKey()`, `hmacSha256()`, `encryptValue()`, `decryptValue()` |
-| **Datei-Handling** | `handleFile()`, `parseFile()`, `renderPreview()` |
-| **Verarbeitung** | `processFile()` — async, mit Fortschrittsbalken |
+| **Datei-Handling** | `addFiles()`, `parseOneFile()`, `renderPreview()` |
+| **Dateiliste** | `renderFileList()`, `selectFile()`, `removeFile()`, `clearFiles()`, `toggleFileList()` |
+| **Verarbeitung** | `processFile()` — async, Batch-Schleife ueber `fileQueue`, Fortschrittsbalken + Text |
+| **Download** | `downloadResult()` — Einzeldatei direkt, Batch als ZIP via JSZip |
+| **Dateiauswahl** | `renderFileSelector()` — Tabs (<=8) oder Dropdown (>8), `selectFileAndCompare()` |
 | **UI** | Modus-Toggle, Dropzone, Dark Mode, Verlauf |
 
 **Konventionen:**
 - Alles in einer Datei, kein Build-Schritt
-- Externe Bibliotheken nur via CDN (cdnjs.cloudflare.com)
+- Externe Bibliotheken nur via CDN (cdnjs.cloudflare.com): PapaParse, SheetJS, JSZip
 - Vanilla JS, kein Framework
 - localStorage fuer Dark Mode und Verlauf (nie fuer Secrets)
 
 
 ## Testen
+
+### Automatische Tests (pytest)
+
+```bash
+python -m pytest tests/test_batch.py -v
+```
+
+Testet: `process_file()`, `make_output_path()`, `collect_input_files()`, `create_output_zip()`, Roundtrip.
 
 ### Roundtrip-Test (Python)
 
@@ -119,6 +131,8 @@ pseudonymizer/
   ANLEITUNG_pseudonym.md    Benutzer-Anleitung
   CLAUDE.md                 Entwickler-Kontext (fuer AI-Assistenten)
   .gitignore                Ignoriert Datendateien und Build-Artefakte
+  tests/                    Automatische Tests
+    test_batch.py           pytest: Batch-Funktionen (process_file, ZIP I/O etc.)
   docs/                     Wiki-Dokumentation
     index.md                Wiki-Startseite
     installation.md         Installationsanleitung
