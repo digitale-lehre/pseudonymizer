@@ -519,6 +519,19 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         print(f"  python pseudonym.py decrypt {output_path} --secret <IhrSecret>")
 
 
+# ======================== DISPATCH ========================
+
+def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ","):
+    """Verarbeitet eine einzelne CSV/XLSX-Datei (Dispatch nach Dateityp)."""
+    ext = Path(input_path).suffix.lower()
+    if ext == ".xlsx":
+        process_xlsx(input_path, output_path, secret, mode)
+    elif ext in (".csv", ".tsv", ".txt"):
+        process_csv(input_path, output_path, secret, mode, sep)
+    else:
+        raise ValueError(f"Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .tsv, .txt, .xlsx")
+
+
 # ======================== MAIN ========================
 
 if __name__ == "__main__":
@@ -548,11 +561,8 @@ if __name__ == "__main__":
     else:
         out = str(inp.with_name(f"{inp.stem}_restored{inp.suffix}"))
 
-    ext = inp.suffix.lower()
-    if ext == ".xlsx":
-        process_xlsx(args.input, out, args.secret, args.mode)
-    elif ext in (".csv", ".tsv", ".txt"):
-        process_csv(args.input, out, args.secret, args.mode, args.sep)
-    else:
-        print(f"FEHLER: Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .xlsx", file=sys.stderr)
+    try:
+        process_file(args.input, out, args.secret, args.mode, args.sep)
+    except ValueError as e:
+        print(f"FEHLER: {e}", file=sys.stderr)
         sys.exit(1)
