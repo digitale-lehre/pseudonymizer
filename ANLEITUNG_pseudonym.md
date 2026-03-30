@@ -126,6 +126,23 @@ python pseudonym.py encrypt *.csv --secret "MeinSecret" --zip
 **Hinweis:** `--output`/`-o` funktioniert nur bei einzelnen Dateien. Fuer Batch-Verarbeitung `--output-dir` verwenden.
 
 
+## Zusaetzliche Spalten verschluesseln
+
+Falls Ihre Datei Spalten enthaelt, die nicht automatisch erkannt werden (z.B. "Kommentar", "Notiz", "Bemerkung"), koennen Sie diese manuell zur Verschluesselung hinzufuegen.
+
+### Browser-GUI
+
+In der Dateivorschau auf die gewuenschte Spaltenueberschrift klicken. Die Spalte wird blau hinterlegt und beim naechsten Verschluesseln mitverarbeitet. Zum Entfernen auf das × klicken. Es koennen beliebig viele zusaetzliche Spalten gleichzeitig ausgewaehlt werden.
+
+### Python CLI
+
+```bash
+python pseudonym.py encrypt datei.csv --secret "MeinSecret" --extra-cols "Kommentar,Notiz"
+```
+
+Mehrere Spalten werden kommagetrennt angegeben. Bereits automatisch erkannte Spalten (z.B. Vorname) muessen nicht nochmals angegeben werden.
+
+
 ## Unterstuetzte Spalten
 
 Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (case-insensitive):
@@ -207,7 +224,7 @@ python pseudonym.py decrypt tp-jahr5-2026_SoSe_0_pseudo.xlsx --secret "SoSe2026-
 
 ```
 python pseudonym.py [-h] [--version] {encrypt,decrypt} input [input ...] --secret SECRET
-                    [--output OUTPUT] [--sep SEP] [--output-dir DIR] [--zip]
+                    [--output OUTPUT] [--sep SEP] [--output-dir DIR] [--zip] [--extra-cols SPALTEN]
 
 Argumente:
   {encrypt,decrypt}   encrypt = pseudonymisieren, decrypt = zurueckfuehren
@@ -217,5 +234,6 @@ Argumente:
   --sep, -s           CSV-Trennzeichen (Standard: Komma; wird bei XLSX ignoriert)
   --output-dir DIR    Ausgabeverzeichnis fuer Batch-Verarbeitung
   --zip               Alle Ergebnisdateien in ein ZIP-Archiv buendeln
+  --extra-cols SPALTEN  Zusaetzliche Spalten verschluesseln (kommagetrennt)
   --version           Versionsnummer anzeigen
 ```

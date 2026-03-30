@@ -73,6 +73,17 @@ Nach der Verarbeitung koennen einzelne Dateien fuer die Vorschau und den Vorher/
 - **Bei mehr als 8 Dateien:** Dropdown-Menue mit Vor/Zurueck-Navigation
 
 
+## Zusaetzliche Spalten
+
+In der Vorschau koennen zusaetzliche Spalten zur Verschluesselung ausgewaehlt werden:
+
+1. **Spalte hinzufuegen:** Auf eine nicht-hervorgehobene Spaltenueberschrift klicken — sie wird blau hinterlegt
+2. **Spalte entfernen:** Auf das × neben dem Spaltennamen klicken
+3. **Mehrere Spalten:** Beliebig viele Spalten koennen gleichzeitig ausgewaehlt werden
+
+Die ausgewaehlten Spalten werden in allen geladenen Dateien verschluesselt (sofern die Spalte dort existiert). Automatisch erkannte Identitaetsspalten koennen nicht abgewaehlt werden.
+
+
 ## Funktionen
 
 ### Vorher/Nachher-Vergleich

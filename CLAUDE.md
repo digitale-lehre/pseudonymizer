@@ -94,6 +94,9 @@ python pseudonym.py encrypt archive.zip --secret "test"
 # ZIP output
 python pseudonym.py encrypt *.csv --secret "test" --zip
 
+# Encrypt with extra columns
+python pseudonym.py encrypt input.csv --secret "test" --extra-cols "Kommentar,Notiz"
+
 # Run tests
 python -m pytest tests/test_batch.py -v
 ```

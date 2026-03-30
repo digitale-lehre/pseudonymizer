@@ -3,7 +3,7 @@
 ## Syntax
 
 ```
-python pseudonym.py {encrypt|decrypt} DATEI [DATEI ...] --secret SECRET [--output PFAD] [--sep ZEICHEN] [--output-dir DIR] [--zip]
+python pseudonym.py {encrypt|decrypt} DATEI [DATEI ...] --secret SECRET [--output PFAD] [--sep ZEICHEN] [--output-dir DIR] [--zip] [--extra-cols SPALTEN]
 ```
 
 ## Argumente
@@ -17,6 +17,7 @@ python pseudonym.py {encrypt|decrypt} DATEI [DATEI ...] --secret SECRET [--outpu
 | `--sep ZEICHEN`, `-s` | Nein | CSV-Trennzeichen (Standard: Komma). Wird bei XLSX ignoriert. |
 | `--output-dir DIR` | Nein | Ausgabeverzeichnis fuer Batch-Verarbeitung |
 | `--zip` | Nein | Alle Ergebnisdateien in ein ZIP-Archiv buendeln (nur Batch) |
+| `--extra-cols SPALTEN` | Nein | Zusaetzliche Spalten verschluesseln (kommagetrennt) |
 | `--version` | Nein | Versionsnummer anzeigen |
 | `--help`, `-h` | Nein | Hilfe anzeigen |
 
@@ -125,6 +126,20 @@ Nach Abschluss zeigt das Tool eine Zusammenfassung:
 ```
 Batch abgeschlossen: 5 erfolgreich, 0 fehlgeschlagen
 ```
+
+
+## Zusaetzliche Spalten
+
+Neben den automatisch erkannten Identitaetsspalten koennen zusaetzliche Spalten zur Verschluesselung angegeben werden:
+
+```bash
+python pseudonym.py encrypt datei.csv --secret "MeinSecret" --extra-cols "Kommentar,Notiz"
+```
+
+- Spaltennamen werden case-insensitive abgeglichen
+- Nicht vorhandene Spalten werden stillschweigend ignoriert
+- Bereits automatisch erkannte Spalten werden nicht doppelt verschluesselt
+- Funktioniert mit Einzel- und Batch-Modus
 
 
 ## Unterstuetzte Dateiformate

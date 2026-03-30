@@ -65,6 +65,8 @@ python pseudonym.py encrypt *.csv --secret "MeinSecret" --output-dir ./encrypted
 
 Mehr dazu: [CLI Batch-Modus](docs/usage-cli.md#batch-modus) | [GUI Batch-Modus](docs/usage-gui.md#batch-modus)
 
+**Zusaetzliche Spalten:** Neben den automatisch erkannten Identitaetsspalten koennen weitere Spalten verschluesselt werden — per `--extra-cols "Spalte1,Spalte2"` (CLI) oder durch Klick auf Spaltenueberschriften in der GUI. Siehe [Anleitung](ANLEITUNG_pseudonym.md#zusaetzliche-spalten-verschluesseln).
+
 ## Erkannte Spalten
 
 Das Tool erkennt automatisch verschiedene Schreibweisen (case-insensitive):
