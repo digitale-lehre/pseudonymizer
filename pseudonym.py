@@ -521,6 +521,44 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
 
 # ======================== BATCH HELPERS ========================
 
+def collect_input_files(paths: list) -> list:
+    """Sammelt Eingabedateien. ZIP-Archive werden entpackt (nur CSV/XLSX).
+    Gibt Liste von Path-Objekten zurueck (ggf. in tempdir extrahiert)."""
+    import zipfile
+    import tempfile
+
+    SUPPORTED = {".csv", ".tsv", ".txt", ".xlsx"}
+    ZIP_EXTRACT = {".csv", ".tsv", ".xlsx"}
+    collected = []
+
+    for p in paths:
+        p = Path(p)
+        if p.suffix.lower() == ".zip":
+            tmpdir = Path(tempfile.mkdtemp(prefix="pseudo_zip_"))
+            with zipfile.ZipFile(p, "r") as zf:
+                for member in zf.namelist():
+                    if member.endswith("/") or Path(member).name.startswith("."):
+                        continue
+                    ext = Path(member).suffix.lower()
+                    if ext in ZIP_EXTRACT:
+                        target = tmpdir / Path(member).name
+                        counter = 1
+                        while target.exists():
+                            stem = Path(member).stem
+                            target = tmpdir / f"{stem}_{counter}{ext}"
+                            counter += 1
+                        with open(target, "wb") as f:
+                            f.write(zf.read(member))
+                        collected.append(target)
+            if not any(f.parent == tmpdir for f in collected):
+                import shutil
+                shutil.rmtree(tmpdir, ignore_errors=True)
+        elif p.suffix.lower() in SUPPORTED:
+            collected.append(p)
+
+    return collected
+
+
 def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
     """Erzeugt Ausgabepfad: <name>_pseudo.<ext> bzw. <name>_restored.<ext>.
     Optional in ein anderes Verzeichnis (output_dir)."""
@@ -573,12 +611,17 @@ if __name__ == "__main__":
               "Verwenden Sie --output-dir fuer Batch.", file=sys.stderr)
         sys.exit(1)
 
-    # Dateien sammeln
-    all_files = [Path(p) for p in args.input]
-    for f in all_files:
-        if not f.exists():
-            print(f"FEHLER: Datei nicht gefunden: {f}", file=sys.stderr)
+    # Pruefen ob alle Eingabedateien existieren
+    for p in args.input:
+        if not Path(p).exists():
+            print(f"FEHLER: Datei nicht gefunden: {p}", file=sys.stderr)
             sys.exit(1)
+
+    # Dateien sammeln (ZIP-Archive werden entpackt)
+    all_files = collect_input_files(args.input)
+    if not all_files:
+        print("FEHLER: Keine verarbeitbaren Dateien gefunden (CSV/XLSX).", file=sys.stderr)
+        sys.exit(1)
 
     if len(all_files) > 1:
         print(f"\nBatch-Modus: {len(all_files)} Datei(en)\n")

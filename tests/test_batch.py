@@ -1,8 +1,9 @@
 import sys
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from pseudonym import process_file, make_output_path
+from pseudonym import process_file, make_output_path, collect_input_files
 
 
 def test_process_file_csv(tmp_path):
@@ -50,3 +51,41 @@ def test_make_output_path_xlsx():
 def test_make_output_path_with_output_dir(tmp_path):
     result = make_output_path(Path("/d/students.csv"), "encrypt", str(tmp_path))
     assert result == str(tmp_path / "students_pseudo.csv")
+
+
+def test_collect_input_files_plain(tmp_path):
+    f1 = tmp_path / "a.csv"
+    f1.write_text("Vorname\nMax\n")
+    f2 = tmp_path / "b.csv"
+    f2.write_text("Vorname\nEva\n")
+    result = collect_input_files([str(f1), str(f2)])
+    assert [Path(r) for r in result] == [f1, f2]
+
+
+def test_collect_input_files_zip(tmp_path):
+    csv1 = tmp_path / "data.csv"
+    csv1.write_text("Vorname\nMax\n")
+    txt = tmp_path / "readme.txt"
+    txt.write_text("ignore me")
+    zp = tmp_path / "bundle.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        zf.write(csv1, "data.csv")
+        zf.write(txt, "readme.txt")
+    result = collect_input_files([str(zp)])
+    assert len(result) == 1
+    assert result[0].name == "data.csv"
+
+
+def test_collect_input_files_mixed(tmp_path):
+    plain = tmp_path / "plain.csv"
+    plain.write_text("Vorname\nEva\n")
+    inner = tmp_path / "inner.csv"
+    inner.write_text("Vorname\nMax\n")
+    zp = tmp_path / "archive.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        zf.write(inner, "inner.csv")
+    result = collect_input_files([str(plain), str(zp)])
+    assert len(result) == 2
+    names = [r.name for r in result]
+    assert "plain.csv" in names
+    assert "inner.csv" in names
