@@ -43,6 +43,36 @@ Ein beliebiges Passwort eingeben. Das Auge-Symbol rechts neben dem Eingabefeld z
 Nach Abschluss wird die Ergebnisdatei zum Download angeboten. Der Dateiname erhaelt automatisch das Suffix `_pseudo` (Verschluesselung) oder `_restored` (Entschluesselung).
 
 
+## Batch-Modus
+
+Die GUI unterstuetzt die Verarbeitung mehrerer Dateien in einem Durchgang.
+
+### Mehrere Dateien laden
+
+- **Mehrfachauswahl:** Im Dateiauswahl-Dialog mit Strg (Windows/Linux) oder Cmd (Mac) mehrere Dateien gleichzeitig auswaehlen
+- **Drag & Drop:** Mehrere Dateien gleichzeitig auf die Dropzone ziehen
+- **ZIP-Upload:** Eine ZIP-Datei hochladen — enthaltene CSV- und XLSX-Dateien werden automatisch extrahiert
+
+### Dateiliste
+
+Unter der Dropzone wird eine Liste aller geladenen Dateien angezeigt. Bei mehr als 8 Dateien wird die Liste scrollbar und zusammenklappbar.
+
+### Batch-Verarbeitung
+
+Nach Eingabe des Secrets und Klick auf "Verschluesseln" oder "Entschluesseln" werden alle Dateien nacheinander verarbeitet. Ein Fortschrittsbalken zeigt den Gesamtfortschritt und die aktuell verarbeitete Datei.
+
+### ZIP-Download
+
+Bei mehreren Ergebnisdateien werden alle Ergebnisse automatisch in ein ZIP-Archiv gebuendelt und zum Download angeboten.
+
+### Dateiauswahl fuer Vorschau
+
+Nach der Verarbeitung koennen einzelne Dateien fuer die Vorschau und den Vorher/Nachher-Vergleich ausgewaehlt werden:
+
+- **Bei bis zu 8 Dateien:** Tabs zum Umschalten zwischen den Dateien
+- **Bei mehr als 8 Dateien:** Dropdown-Menue mit Vor/Zurueck-Navigation
+
+
 ## Funktionen
 
 ### Vorher/Nachher-Vergleich

@@ -81,6 +81,51 @@ python pseudonym.py encrypt eingabe.csv --secret "MeinGeheimesPasswort" --sep ";
 ```
 
 
+## Batch-Modus (mehrere Dateien)
+
+Beide Varianten unterstuetzen die Verarbeitung mehrerer Dateien in einem Durchgang.
+
+### Browser-GUI
+
+- **Mehrfachauswahl:** Im Dateiauswahl-Dialog mit Strg/Cmd mehrere Dateien auswaehlen, oder mehrere Dateien per Drag & Drop laden
+- **ZIP-Upload:** Eine ZIP-Datei hochladen — enthaltene CSV/XLSX werden automatisch extrahiert
+- **Ergebnis:** Bei mehreren Dateien wird ein ZIP-Archiv mit allen Ergebnissen zum Download angeboten
+- **Vorschau:** Ueber Tabs (bis 8 Dateien) oder Dropdown (mehr als 8 Dateien) koennen einzelne Ergebnisse angezeigt werden
+
+### Python CLI
+
+Mehrere Dateien als Argumente uebergeben:
+
+```bash
+python pseudonym.py encrypt datei1.csv datei2.xlsx --secret "MeinSecret"
+```
+
+ZIP-Archiv als Eingabe (entpackt automatisch CSV/XLSX):
+
+```bash
+python pseudonym.py encrypt archiv.zip --secret "MeinSecret"
+```
+
+Alle CSVs verschluesseln und in einem Ordner ablegen:
+
+```bash
+python pseudonym.py encrypt *.csv --secret "MeinSecret" --output-dir ./encrypted/
+```
+
+Alle Ergebnisse in ein ZIP-Archiv buendeln:
+
+```bash
+python pseudonym.py encrypt *.csv --secret "MeinSecret" --zip
+```
+
+| Option | Beschreibung |
+|---|---|
+| `--output-dir DIR` | Ausgabeverzeichnis fuer alle Ergebnisdateien |
+| `--zip` | Alle Ergebnisdateien in ein ZIP-Archiv buendeln |
+
+**Hinweis:** `--output`/`-o` funktioniert nur bei einzelnen Dateien. Fuer Batch-Verarbeitung `--output-dir` verwenden.
+
+
 ## Unterstuetzte Spalten
 
 Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (case-insensitive):
@@ -161,13 +206,16 @@ python pseudonym.py decrypt tp-jahr5-2026_SoSe_0_pseudo.xlsx --secret "SoSe2026-
 ## Vollstaendige Optionen
 
 ```
-python pseudonym.py [-h] [--version] {encrypt,decrypt} input --secret SECRET [--output OUTPUT] [--sep SEP]
+python pseudonym.py [-h] [--version] {encrypt,decrypt} input [input ...] --secret SECRET
+                    [--output OUTPUT] [--sep SEP] [--output-dir DIR] [--zip]
 
 Argumente:
   {encrypt,decrypt}   encrypt = pseudonymisieren, decrypt = zurueckfuehren
-  input               Pfad zur CSV- oder XLSX-Datei
+  input               Pfad(e) zu CSV-, XLSX- oder ZIP-Dateien (mehrere moeglich)
   --secret SECRET     Geheimer Schluessel (beliebiger String)
-  --output, -o        Ausgabepfad (Standard: <name>_pseudo.<ext> / <name>_restored.<ext>)
+  --output, -o        Ausgabepfad (nur bei einzelner Datei)
   --sep, -s           CSV-Trennzeichen (Standard: Komma; wird bei XLSX ignoriert)
+  --output-dir DIR    Ausgabeverzeichnis fuer Batch-Verarbeitung
+  --zip               Alle Ergebnisdateien in ein ZIP-Archiv buendeln
   --version           Versionsnummer anzeigen
 ```

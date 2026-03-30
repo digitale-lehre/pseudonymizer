@@ -3,7 +3,7 @@
 ## Syntax
 
 ```
-python pseudonym.py {encrypt|decrypt} DATEI --secret SECRET [--output PFAD] [--sep ZEICHEN]
+python pseudonym.py {encrypt|decrypt} DATEI [DATEI ...] --secret SECRET [--output PFAD] [--sep ZEICHEN] [--output-dir DIR] [--zip]
 ```
 
 ## Argumente
@@ -11,10 +11,12 @@ python pseudonym.py {encrypt|decrypt} DATEI --secret SECRET [--output PFAD] [--s
 | Argument | Pflicht | Beschreibung |
 |---|---|---|
 | `encrypt` / `decrypt` | Ja | `encrypt` = pseudonymisieren, `decrypt` = zurueckfuehren |
-| `DATEI` | Ja | Pfad zur CSV-, TSV-, TXT- oder XLSX-Datei |
+| `DATEI [DATEI ...]` | Ja | Pfad(e) zu CSV-, TSV-, TXT-, XLSX- oder ZIP-Dateien |
 | `--secret SECRET` | Ja | Geheimer Schluessel (beliebiger String) |
 | `--output PFAD`, `-o` | Nein | Ausgabepfad (Standard: `<name>_pseudo.<ext>` bzw. `<name>_restored.<ext>`) |
 | `--sep ZEICHEN`, `-s` | Nein | CSV-Trennzeichen (Standard: Komma). Wird bei XLSX ignoriert. |
+| `--output-dir DIR` | Nein | Ausgabeverzeichnis fuer Batch-Verarbeitung |
+| `--zip` | Nein | Alle Ergebnisdateien in ein ZIP-Archiv buendeln (nur Batch) |
 | `--version` | Nein | Versionsnummer anzeigen |
 | `--help`, `-h` | Nein | Hilfe anzeigen |
 
@@ -68,6 +70,60 @@ python pseudonym.py encrypt original.csv --secret "test"
 python pseudonym.py decrypt original_pseudo.csv --secret "test"
 diff original.csv original_pseudo_restored.csv
 # Keine Ausgabe = byte-identisch
+```
+
+
+## Batch-Modus
+
+Mehrere Dateien koennen in einem Aufruf verarbeitet werden.
+
+### Mehrere Dateien
+
+```bash
+python pseudonym.py encrypt datei1.csv datei2.xlsx --secret "MeinSecret"
+```
+
+### ZIP-Eingabe
+
+Ein ZIP-Archiv mit CSV/XLSX-Dateien wird automatisch entpackt und alle enthaltenen Dateien verarbeitet:
+
+```bash
+python pseudonym.py encrypt archiv.zip --secret "MeinSecret"
+```
+
+### Alle CSVs im Ordner
+
+```bash
+python pseudonym.py encrypt *.csv --secret "MeinSecret" --output-dir ./encrypted/
+```
+
+### ZIP-Ausgabe
+
+Alle Ergebnisdateien in ein ZIP-Archiv buendeln:
+
+```bash
+python pseudonym.py encrypt *.csv --secret "MeinSecret" --zip
+```
+
+### Batch-Entschluesselung
+
+```bash
+python pseudonym.py decrypt *_pseudo.csv --secret "MeinSecret"
+```
+
+### Batch-Optionen
+
+| Option | Beschreibung |
+|---|---|
+| `--output-dir DIR` | Ausgabeverzeichnis fuer alle Ergebnisdateien |
+| `--zip` | Alle Ergebnisdateien in ein ZIP-Archiv buendeln |
+
+**Hinweis:** Die Option `--output`/`-o` funktioniert nur bei einzelnen Dateien. Fuer Batch-Verarbeitung `--output-dir` verwenden.
+
+Nach Abschluss zeigt das Tool eine Zusammenfassung:
+
+```
+Batch abgeschlossen: 5 erfolgreich, 0 fehlgeschlagen
 ```
 
 

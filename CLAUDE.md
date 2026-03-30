@@ -83,6 +83,20 @@ python pseudonym.py decrypt input_pseudo.csv --secret "test"
 diff input.csv input_pseudo_restored.csv
 ```
 
+```bash
+# Batch encrypt
+python pseudonym.py encrypt file1.csv file2.csv --secret "test"
+
+# ZIP input
+python pseudonym.py encrypt archive.zip --secret "test"
+
+# ZIP output
+python pseudonym.py encrypt *.csv --secret "test" --zip
+
+# Run tests
+python -m pytest tests/test_batch.py -v
+```
+
 The browser GUI requires no build step — open `pseudonym_gui.html` in any modern browser.
 
 ## Cross-Implementation Compatibility Test
