@@ -559,6 +559,17 @@ def collect_input_files(paths: list) -> list:
     return collected
 
 
+def create_output_zip(results: list, zip_path: str):
+    """Buendelt Ergebnisdateien in ein ZIP-Archiv.
+    results: Liste von (input_path, output_path) Tupeln."""
+    import zipfile
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for _, output_path in results:
+            zf.write(output_path, Path(output_path).name)
+    print(f"\n  ZIP erstellt: {zip_path}")
+
+
 def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
     """Erzeugt Ausgabepfad: <name>_pseudo.<ext> bzw. <name>_restored.<ext>.
     Optional in ein anderes Verzeichnis (output_dir)."""
@@ -639,6 +650,18 @@ if __name__ == "__main__":
             print(f"\nFEHLER bei {f.name}: {e}", file=sys.stderr)
             results.append((str(f), None, False, str(e)))
 
+    # ZIP-Ausgabe
+    if args.zip:
+        successful = [(r[0], r[1]) for r in results if r[2]]
+        if successful:
+            first_input = Path(successful[0][0])
+            if args.output_dir:
+                zip_dir = args.output_dir
+            else:
+                zip_dir = str(first_input.parent)
+            zip_name = str(Path(zip_dir) / f"batch_{args.mode}_{len(successful)}files.zip")
+            create_output_zip(successful, zip_name)
+
     # Zusammenfassung bei Batch
     if len(all_files) > 1:
         ok = sum(1 for r in results if r[2])
@@ -650,6 +673,16 @@ if __name__ == "__main__":
                 if not success:
                     print(f"  FEHLER: {Path(inp).name}: {err}")
         print(f"{'='*50}")
+
+    # Temp-Verzeichnisse aufraeumen (aus ZIP-Extraktion)
+    import shutil
+    cleaned = set()
+    for f in all_files:
+        if "pseudo_zip_" in str(f.parent):
+            d = str(f.parent)
+            if d not in cleaned:
+                shutil.rmtree(d, ignore_errors=True)
+                cleaned.add(d)
 
     if any(not r[2] for r in results):
         sys.exit(1)

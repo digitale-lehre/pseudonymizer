@@ -3,7 +3,7 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from pseudonym import process_file, make_output_path, collect_input_files
+from pseudonym import process_file, make_output_path, collect_input_files, create_output_zip
 
 
 def test_process_file_csv(tmp_path):
@@ -89,3 +89,18 @@ def test_collect_input_files_mixed(tmp_path):
     names = [r.name for r in result]
     assert "plain.csv" in names
     assert "inner.csv" in names
+
+
+def test_create_output_zip(tmp_path):
+    f1 = tmp_path / "a_pseudo.csv"
+    f1.write_text("encrypted_a")
+    f2 = tmp_path / "b_pseudo.csv"
+    f2.write_text("encrypted_b")
+    zip_path = tmp_path / "output.zip"
+    create_output_zip([(str(f1), str(f1)), (str(f2), str(f2))], str(zip_path))
+    assert zip_path.exists()
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        names = zf.namelist()
+        assert "a_pseudo.csv" in names
+        assert "b_pseudo.csv" in names
+        assert zf.read("a_pseudo.csv").decode() == "encrypted_a"
