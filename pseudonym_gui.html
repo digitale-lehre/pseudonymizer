@@ -111,6 +111,15 @@ th, td { padding: .45rem .65rem; border-bottom: 1px solid var(--border); text-al
 th { background: var(--bg3); font-weight: 600; position: sticky; top: 0; z-index: 1; color: var(--text2); }
 td.id-col { background: color-mix(in srgb, var(--accent) 8%, transparent); font-weight: 500; }
 th.id-col { background: var(--accent); color: #fff; }
+th.col-addable { cursor: pointer; position: relative; }
+th.col-addable:hover { background: color-mix(in srgb, var(--accent) 15%, var(--bg3)); }
+th.col-addable::after { content: '+'; position: absolute; right: .3rem; top: 50%; transform: translateY(-50%);
+  font-size: .7rem; opacity: 0; color: var(--accent); font-weight: 700; transition: opacity .15s; }
+th.col-addable:hover::after { opacity: .7; }
+th.col-custom { background: var(--accent); color: #fff; cursor: pointer; }
+th.col-custom .col-x { font-size: .75rem; margin-left: .3rem; opacity: .7; }
+th.col-custom .col-x:hover { opacity: 1; }
+td.col-custom { background: color-mix(in srgb, var(--accent) 8%, transparent); font-weight: 500; }
 td.changed { background: var(--orange-bg); }
 
 /* Sheet tabs */
@@ -267,6 +276,7 @@ td.changed { background: var(--orange-bg); }
   <!-- Preview -->
   <div class="card hidden" id="previewCard">
     <div class="card-title">Dateivorschau <span id="previewInfo" style="font-weight:400;"></span></div>
+    <div id="customColsHint" class="hidden" style="font-size:.75rem;color:var(--text2);margin-bottom:.5rem;">Klicken Sie auf Spaltenueberschriften, um zusaetzliche Spalten zu verschluesseln.</div>
     <div id="fileSelectorPreview"></div>
     <div class="sheet-tabs" id="sheetTabs"></div>
     <div class="table-wrap" id="previewTable"></div>
@@ -315,6 +325,7 @@ let currentMode = 'encrypt';
 let batchResults = [];      // [{blob, name, totalCells, sheetsProcessed, sheetsSkipped, resultSheets}]
 let activeSheet = 0;
 let compareView = 'orig';
+let customCols = new Set();  // User-selected extra columns to encrypt
 
 // ================= COLUMN ALIASES (identical to pseudonym.py) =================
 const COLUMN_ALIASES = {
@@ -568,6 +579,7 @@ function renderPreview() {
 
   const pc = document.getElementById('previewCard');
   pc.classList.remove('hidden');
+  document.getElementById('customColsHint').classList.toggle('hidden', fileQueue.length === 0);
   renderFileSelector('fileSelectorPreview', 'selectFile');
   const tabs = document.getElementById('sheetTabs');
   if (activeSheet >= parsedData.sheets.length) activeSheet = 0;
@@ -594,29 +606,46 @@ function renderSheetTable(containerId, sheet, showChanged, resultSheet) {
   if (!sheet || sheet.headers.length === 0) { el.innerHTML = '<div style="padding:1rem;color:var(--text2)">Leeres Sheet</div>'; return; }
 
   const idCols = findIdentityCols(sheet.headers);
-  const idSet = new Set(Object.values(idCols).map(c => sheet.headers.indexOf(c)));
+  const autoSet = new Set(Object.values(idCols).map(c => sheet.headers.indexOf(c)));
   const nameCol = findNameCol(sheet.headers);
-  if (nameCol) idSet.add(sheet.headers.indexOf(nameCol));
+  if (nameCol) autoSet.add(sheet.headers.indexOf(nameCol));
+
+  // Custom columns: find indices for columns in customCols that exist in this sheet
+  const customSet = new Set();
+  for (const cn of customCols) {
+    const idx = sheet.headers.findIndex(h => h.trim().toLowerCase() === cn.trim().toLowerCase());
+    if (idx >= 0 && !autoSet.has(idx)) customSet.add(idx);
+  }
 
   const maxRows = 20;
   const rows = sheet.rows.slice(0, maxRows);
   let html = '<table><thead><tr>';
   sheet.headers.forEach((h, i) => {
-    html += `<th class="${idSet.has(i) ? 'id-col' : ''}">${esc(h)}</th>`;
+    if (autoSet.has(i)) {
+      html += `<th class="id-col">${esc(h)}</th>`;
+    } else if (customSet.has(i)) {
+      html += `<th class="col-custom" data-col="${esc(h)}">${esc(h)}<span class="col-x">\u00d7</span></th>`;
+    } else {
+      html += `<th class="col-addable" data-col="${esc(h)}">${esc(h)}</th>`;
+    }
   });
   html += '</tr></thead><tbody>';
   rows.forEach((r, ri) => {
     html += '<tr>';
     r.forEach((c, ci) => {
-      const isId = idSet.has(ci);
+      const cls = autoSet.has(ci) ? 'id-col' : customSet.has(ci) ? 'col-custom' : '';
       const changed = showChanged && resultSheet && resultSheet.rows[ri] && resultSheet.rows[ri][ci] !== c;
-      html += `<td class="${isId ? 'id-col' : ''} ${changed ? 'changed' : ''}">${esc(String(c))}</td>`;
+      html += `<td class="${cls} ${changed ? 'changed' : ''}">${esc(String(c))}</td>`;
     });
     html += '</tr>';
   });
   html += '</tbody></table>';
   if (sheet.rows.length > maxRows) html += `<div style="padding:.5rem;font-size:.78rem;color:var(--text2);text-align:center;">... und ${sheet.rows.length - maxRows} weitere Zeilen</div>`;
   el.innerHTML = html;
+  // Attach click handlers via data attributes (safe for column names with quotes)
+  el.querySelectorAll('th.col-addable, th.col-custom').forEach(th => {
+    th.addEventListener('click', () => toggleCustomCol(th.dataset.col));
+  });
 }
 
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -679,8 +708,15 @@ function removeFile(idx) {
   updateActionState();
 }
 
+function toggleCustomCol(colName) {
+  if (customCols.has(colName)) customCols.delete(colName);
+  else customCols.add(colName);
+  renderPreview();
+}
+
 function clearFiles() {
   fileQueue = [];
+  customCols.clear();
   activeFileIdx = 0;
   document.getElementById('previewCard').classList.add('hidden');
   document.getElementById('fileList').innerHTML = '';
@@ -772,6 +808,15 @@ async function processFile() {
         continue;
       }
       const idCols = findIdentityCols(sheet.headers);
+      // Benutzerdefinierte Spalten einmischen
+      const existingVals = new Set(Object.values(idCols));
+      for (const cn of customCols) {
+        const idx = sheet.headers.findIndex(h => h.trim().toLowerCase() === cn.trim().toLowerCase());
+        if (idx >= 0 && !existingVals.has(sheet.headers[idx])) {
+          idCols['_custom_' + cn] = sheet.headers[idx];
+          existingVals.add(sheet.headers[idx]);
+        }
+      }
       if (Object.keys(idCols).length === 0) {
         log(`  Sheet "${sheet.name}": keine Identitaetsspalten [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
         sheetsSkipped++;
@@ -790,7 +835,9 @@ async function processFile() {
         if (nv === `${fv} ${vv}`.trim()) { nameIsComposite = true; nameOrder = 'fam_vor'; }
         else if (nv === `${vv} ${fv}`.trim()) { nameIsComposite = true; nameOrder = 'vor_fam'; }
       }
-      log(`  Sheet "${sheet.name}": ${Object.values(idCols).join(', ')}${nameIsComposite && nameColName ? ' + '+nameColName : ''}`);
+      const customInSheet = Object.keys(idCols).filter(k => k.startsWith('_custom_')).length;
+      const colInfo = Object.values(idCols).join(', ') + (nameIsComposite && nameColName ? ' + '+nameColName : '');
+      log(`  Sheet "${sheet.name}": ${colInfo}${customInSheet ? ` (${customInSheet} benutzerdefiniert)` : ''}`);
       const newRows = [];
       let sheetCells = 0;
       for (let ri = 0; ri < sheet.rows.length; ri++) {
