@@ -519,6 +519,19 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         print(f"  python pseudonym.py decrypt {output_path} --secret <IhrSecret>")
 
 
+# ======================== BATCH HELPERS ========================
+
+def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
+    """Erzeugt Ausgabepfad: <name>_pseudo.<ext> bzw. <name>_restored.<ext>.
+    Optional in ein anderes Verzeichnis (output_dir)."""
+    p = Path(input_path)
+    suffix = "_pseudo" if mode == "encrypt" else "_restored"
+    name = f"{p.stem}{suffix}{p.suffix}"
+    if output_dir:
+        return str(Path(output_dir) / name)
+    return str(p.with_name(name))
+
+
 # ======================== DISPATCH ========================
 
 def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ","):
@@ -541,28 +554,59 @@ if __name__ == "__main__":
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("mode", choices=["encrypt", "decrypt"],
                         help="encrypt = pseudonymisieren, decrypt = zurueckfuehren")
-    parser.add_argument("input", help="Pfad zur CSV- oder XLSX-Datei")
+    parser.add_argument("input", nargs="+",
+                        help="Pfad(e) zu CSV/XLSX/ZIP-Datei(en)")
     parser.add_argument("--secret", required=True, help="Ihr geheimer Schluessel")
     parser.add_argument("--output", "-o",
-                        help="Ausgabepfad (Standard: <name>_pseudo.<ext> bzw. <name>_restored.<ext>)")
+                        help="Ausgabepfad (nur bei einzelner Datei)")
+    parser.add_argument("--output-dir",
+                        help="Ausgabeverzeichnis fuer Batch-Modus")
+    parser.add_argument("--zip", action="store_true",
+                        help="Ergebnis als ZIP-Datei buendeln")
     parser.add_argument("--sep", "-s", default=",",
                         help="CSV-Trennzeichen (Standard: Komma, wird bei XLSX ignoriert)")
     args = parser.parse_args()
 
-    inp = Path(args.input)
-    if not inp.exists():
-        print(f"FEHLER: Datei nicht gefunden: {inp}", file=sys.stderr)
+    # --output nur bei einzelner Datei
+    if args.output and len(args.input) > 1:
+        print("FEHLER: --output nur bei einzelner Datei moeglich. "
+              "Verwenden Sie --output-dir fuer Batch.", file=sys.stderr)
         sys.exit(1)
 
-    if args.output:
-        out = args.output
-    elif args.mode == "encrypt":
-        out = str(inp.with_name(f"{inp.stem}_pseudo{inp.suffix}"))
-    else:
-        out = str(inp.with_name(f"{inp.stem}_restored{inp.suffix}"))
+    # Dateien sammeln
+    all_files = [Path(p) for p in args.input]
+    for f in all_files:
+        if not f.exists():
+            print(f"FEHLER: Datei nicht gefunden: {f}", file=sys.stderr)
+            sys.exit(1)
 
-    try:
-        process_file(args.input, out, args.secret, args.mode, args.sep)
-    except ValueError as e:
-        print(f"FEHLER: {e}", file=sys.stderr)
+    if len(all_files) > 1:
+        print(f"\nBatch-Modus: {len(all_files)} Datei(en)\n")
+
+    results = []
+    for f in all_files:
+        if args.output and len(all_files) == 1:
+            out = args.output
+        else:
+            out = make_output_path(f, args.mode, args.output_dir)
+        try:
+            process_file(str(f), out, args.secret, args.mode, args.sep)
+            results.append((str(f), out, True, None))
+        except Exception as e:
+            print(f"\nFEHLER bei {f.name}: {e}", file=sys.stderr)
+            results.append((str(f), None, False, str(e)))
+
+    # Zusammenfassung bei Batch
+    if len(all_files) > 1:
+        ok = sum(1 for r in results if r[2])
+        fail = len(results) - ok
+        print(f"\n{'='*50}")
+        print(f"Batch abgeschlossen: {ok} erfolgreich, {fail} fehlgeschlagen")
+        if fail > 0:
+            for inp, _, success, err in results:
+                if not success:
+                    print(f"  FEHLER: {Path(inp).name}: {err}")
+        print(f"{'='*50}")
+
+    if any(not r[2] for r in results):
         sys.exit(1)

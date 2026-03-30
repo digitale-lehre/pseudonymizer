@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from pseudonym import process_file
+from pseudonym import process_file, make_output_path
 
 
 def test_process_file_csv(tmp_path):
@@ -33,3 +33,20 @@ def test_process_file_roundtrip(tmp_path):
     assert "Mustermann" in restored
     assert "Eva" in restored
     assert "Testerin" in restored
+
+
+def test_make_output_path_encrypt():
+    assert make_output_path(Path("/d/students.csv"), "encrypt") == "/d/students_pseudo.csv"
+
+
+def test_make_output_path_decrypt():
+    assert make_output_path(Path("/d/data_pseudo.csv"), "decrypt") == "/d/data_pseudo_restored.csv"
+
+
+def test_make_output_path_xlsx():
+    assert make_output_path(Path("/d/data.xlsx"), "encrypt") == "/d/data_pseudo.xlsx"
+
+
+def test_make_output_path_with_output_dir(tmp_path):
+    result = make_output_path(Path("/d/students.csv"), "encrypt", str(tmp_path))
+    assert result == str(tmp_path / "students_pseudo.csv")
