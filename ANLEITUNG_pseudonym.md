@@ -185,7 +185,7 @@ Falls eine Spalte `NAME` existiert und deren Inhalt der Kombination aus `FAMILIE
 Falls eine XLSX-Datei fehlerhafte Zeichnungsreferenzen enthaelt (z.B. `drawing1.xml` fehlt im Archiv), repariert das Tool diese automatisch vor der Verarbeitung. Eine entsprechende Meldung wird ausgegeben.
 
 
-## MLW-Exporte (MedLearnWiki)
+## MLW-Exporte (Medizinische Lehre Wien)
 
 MLW-Exporte enthalten Metadaten-Zeilen vor der eigentlichen Spalten-Kopfzeile (z.B. Modulcode, Modulname, Datum). Das Tool erkennt die Header-Zeile automatisch und behaelt die Metadaten-Zeilen unveraendert bei.
 
