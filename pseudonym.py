@@ -205,7 +205,7 @@ def detect_file_encoding(raw: bytes) -> tuple:
     return "utf-8", 0
 
 
-def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: str = ","):
+def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: str = ",", extra_cols: list = None):
     key = derive_key(secret)
     transform = encrypt_value if mode == "encrypt" else decrypt_value
 
@@ -258,6 +258,17 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
         sys.exit(1)
 
     id_cols = find_identity_cols(fieldnames)
+
+    # Zusaetzliche benutzerdefinierte Spalten einmischen
+    if extra_cols:
+        existing_vals = set(id_cols.values())
+        for col_name in extra_cols:
+            for h in fieldnames:
+                if h.strip().lower() == col_name.strip().lower() and h not in existing_vals:
+                    id_cols[f"_custom_{col_name}"] = h
+                    existing_vals.add(h)
+                    break
+
     name_col = find_name_col(fieldnames)
     if not id_cols:
         print(f"FEHLER: Keine Identitaetsspalten gefunden.", file=sys.stderr)
@@ -391,7 +402,7 @@ def _fix_xlsx_drawings(input_path: str) -> str:
         return tmp_path
 
 
-def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
+def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extra_cols: list = None):
     from openpyxl import load_workbook
     from copy import copy
 
@@ -431,6 +442,17 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str):
         header_row_num = header_offset + 1
 
         id_cols = find_identity_cols(headers)
+
+        # Zusaetzliche benutzerdefinierte Spalten einmischen
+        if extra_cols:
+            existing_vals = set(id_cols.values())
+            for col_name in extra_cols:
+                for h in headers:
+                    if h.strip().lower() == col_name.strip().lower() and h not in existing_vals:
+                        id_cols[f"_custom_{col_name}"] = h
+                        existing_vals.add(h)
+                        break
+
         if not id_cols:
             # Warnung ausgeben, aber nicht abbrechen
             sheets_skipped.append(f"{ws.title} (keine Identitaetsspalten erkannt: {[h for h in headers if h]})")
@@ -583,13 +605,13 @@ def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
 
 # ======================== DISPATCH ========================
 
-def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ","):
+def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ",", extra_cols: list = None):
     """Verarbeitet eine einzelne CSV/XLSX-Datei (Dispatch nach Dateityp)."""
     ext = Path(input_path).suffix.lower()
     if ext == ".xlsx":
-        process_xlsx(input_path, output_path, secret, mode)
+        process_xlsx(input_path, output_path, secret, mode, extra_cols=extra_cols)
     elif ext in (".csv", ".tsv", ".txt"):
-        process_csv(input_path, output_path, secret, mode, sep)
+        process_csv(input_path, output_path, secret, mode, sep, extra_cols=extra_cols)
     else:
         raise ValueError(f"Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .tsv, .txt, .xlsx")
 
@@ -614,7 +636,11 @@ if __name__ == "__main__":
                         help="Ergebnis als ZIP-Datei buendeln")
     parser.add_argument("--sep", "-s", default=",",
                         help="CSV-Trennzeichen (Standard: Komma, wird bei XLSX ignoriert)")
+    parser.add_argument("--extra-cols",
+                        help="Zusaetzliche Spalten verschluesseln (kommagetrennt, z.B. 'Kommentar,Notiz')")
     args = parser.parse_args()
+
+    extra_cols = [c.strip() for c in args.extra_cols.split(",")] if args.extra_cols else None
 
     # --output nur bei einzelner Datei
     if args.output and len(args.input) > 1:
@@ -644,7 +670,7 @@ if __name__ == "__main__":
         else:
             out = make_output_path(f, args.mode, args.output_dir)
         try:
-            process_file(str(f), out, args.secret, args.mode, args.sep)
+            process_file(str(f), out, args.secret, args.mode, args.sep, extra_cols=extra_cols)
             results.append((str(f), out, True, None))
         except Exception as e:
             print(f"\nFEHLER bei {f.name}: {e}", file=sys.stderr)

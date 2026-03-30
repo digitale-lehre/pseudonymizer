@@ -104,3 +104,49 @@ def test_create_output_zip(tmp_path):
         assert "a_pseudo.csv" in names
         assert "b_pseudo.csv" in names
         assert zf.read("a_pseudo.csv").decode() == "encrypted_a"
+
+
+def test_extra_cols_encrypts_custom_column(tmp_path):
+    """Extra columns are encrypted alongside auto-detected ones."""
+    src = tmp_path / "data.csv"
+    src.write_text("Vorname,Familienname,Kommentar\nMax,Muster,Geheim\n", encoding="utf-8")
+    dst = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(dst), "secret", "encrypt", ",", extra_cols=["Kommentar"])
+    content = dst.read_text(encoding="utf-8")
+    assert "Max" not in content
+    assert "Muster" not in content
+    assert "Geheim" not in content
+    assert "Vorname" in content
+    assert "Kommentar" in content
+
+
+def test_extra_cols_roundtrip(tmp_path):
+    """Extra-col encrypt then decrypt restores original."""
+    src = tmp_path / "data.csv"
+    src.write_text("Vorname,Familienname,Notiz\nEva,Test,Vertraulich\n", encoding="utf-8")
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "s", "encrypt", ",", extra_cols=["Notiz"])
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "s", "decrypt", ",", extra_cols=["Notiz"])
+    content = dec.read_text(encoding="utf-8")
+    assert "Vertraulich" in content
+
+
+def test_extra_cols_missing_column_ignored(tmp_path):
+    """Extra column that doesn't exist in file is silently ignored."""
+    src = tmp_path / "data.csv"
+    src.write_text("Vorname,Familienname\nMax,Muster\n", encoding="utf-8")
+    dst = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(dst), "secret", "encrypt", ",", extra_cols=["NichtVorhanden"])
+    assert dst.exists()
+    content = dst.read_text(encoding="utf-8")
+    assert "Max" not in content
+
+
+def test_extra_cols_no_duplicates(tmp_path):
+    """If extra col is already auto-detected, don't encrypt twice."""
+    src = tmp_path / "data.csv"
+    src.write_text("Vorname,Familienname\nMax,Muster\n", encoding="utf-8")
+    dst = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(dst), "secret", "encrypt", ",", extra_cols=["Vorname"])
+    assert dst.exists()
