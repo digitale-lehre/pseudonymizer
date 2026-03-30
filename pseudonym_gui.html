@@ -6,6 +6,7 @@
 <title>Pseudonymisierung — MedUni Wien</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root { --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --text: #1e293b; --text2: #64748b;
   --border: #e2e8f0; --accent: #2563eb; --accent2: #1d4ed8; --green: #16a34a; --green-bg: #dcfce7;
@@ -48,6 +49,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sa
 .dropzone-text { font-size: .95rem; color: var(--text2); }
 .dropzone-file { font-size: 1rem; font-weight: 600; color: var(--green); }
 
+/* File list */
+.file-list { margin-top: .75rem; }
+.file-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; }
+.file-list-summary { font-size: .8rem; font-weight: 600; color: var(--text2); }
+.file-list-actions { display: flex; gap: .35rem; }
+.file-list-scroll { max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: .375rem; }
+.file-item { display: flex; align-items: center; gap: .5rem; padding: .35rem .6rem;
+  font-size: .82rem; cursor: pointer; transition: background .15s; border-bottom: 1px solid var(--border); }
+.file-item:last-child { border-bottom: none; }
+.file-item:hover { background: var(--bg3); }
+.file-item.active { background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-left: 3px solid var(--accent); }
+.file-item-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-item-size { color: var(--text2); font-size: .72rem; white-space: nowrap; }
+.file-item-remove { background: none; border: none; color: var(--text2); cursor: pointer;
+  font-size: 1rem; padding: 0 .2rem; line-height: 1; }
+.file-item-remove:hover { color: var(--red); }
+.file-action-btn { background: none; border: 1px solid var(--border); color: var(--text2);
+  font-size: .72rem; padding: .2rem .5rem; border-radius: .25rem; cursor: pointer; }
+.file-action-btn:hover { border-color: var(--red); color: var(--red); }
+
 /* Inputs */
 .input-row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; }
 .input-group { flex: 1; min-width: 200px; }
@@ -79,6 +101,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sa
 .progress-bar { width: 100%; height: .4rem; background: var(--bg3); border-radius: 9999px; overflow: hidden; margin: .75rem 0; display: none; }
 .progress-bar.active { display: block; }
 .progress-fill { height: 100%; background: var(--accent); border-radius: 9999px; transition: width .15s; width: 0; }
+.progress-text { font-size: .78rem; color: var(--text2); margin-top: .35rem; display: none; }
+.progress-text.active { display: block; }
 
 /* Preview table */
 .table-wrap { overflow-x: auto; max-height: 400px; overflow-y: auto; border-radius: .5rem; border: 1px solid var(--border); }
@@ -94,6 +118,22 @@ td.changed { background: var(--orange-bg); }
 .sheet-tab { padding: .35rem .85rem; border-radius: .4rem .4rem 0 0; border: 1px solid var(--border); border-bottom: none;
   background: var(--bg3); color: var(--text2); cursor: pointer; font-size: .8rem; font-weight: 500; transition: all .15s; }
 .sheet-tab.active { background: var(--bg2); color: var(--accent); font-weight: 700; border-bottom: 2px solid var(--accent); }
+
+/* File selector (tabs / dropdown) */
+.file-tabs { display: flex; gap: .25rem; flex-wrap: wrap; margin-bottom: .5rem;
+  padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
+.file-tab { padding: .3rem .7rem; border-radius: .25rem; font-size: .78rem; cursor: pointer;
+  background: var(--bg3); color: var(--text2); border: 1px solid transparent; transition: all .15s; }
+.file-tab:hover { border-color: var(--border); }
+.file-tab.active-file { background: var(--accent); color: #fff; font-weight: 600; }
+.file-selector { display: flex; align-items: center; gap: .4rem; margin-bottom: .5rem;
+  padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
+.file-selector select { flex: 1; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: .375rem;
+  font-size: .82rem; background: var(--bg); color: var(--text); cursor: pointer; }
+.file-selector-nav { background: var(--bg3); border: 1px solid var(--border); border-radius: .25rem;
+  padding: .25rem .5rem; font-size: .8rem; cursor: pointer; color: var(--text2); font-weight: 600; }
+.file-selector-nav:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.file-selector-count { font-size: .72rem; color: var(--text2); white-space: nowrap; }
 
 /* Log */
 .log { font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: .78rem; background: var(--bg3);
@@ -169,7 +209,8 @@ td.changed { background: var(--orange-bg); }
       <div class="dropzone-icon" id="dzIcon">&#128196;</div>
       <div id="dzText" class="dropzone-text">CSV oder XLSX hierher ziehen — oder klicken</div>
     </div>
-    <input type="file" id="fileInput" accept=".csv,.xlsx,.tsv,.txt" style="display:none">
+    <div id="fileList" class="file-list"></div>
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.tsv,.txt,.zip" multiple style="display:none">
   </div>
 
   <div class="card">
@@ -220,11 +261,13 @@ td.changed { background: var(--orange-bg); }
       <span id="actionHint" style="font-size:.8rem;color:var(--text2);"></span>
     </div>
     <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-text" id="progressText"></div>
   </div>
 
   <!-- Preview -->
   <div class="card hidden" id="previewCard">
     <div class="card-title">Dateivorschau <span id="previewInfo" style="font-weight:400;"></span></div>
+    <div id="fileSelectorPreview"></div>
     <div class="sheet-tabs" id="sheetTabs"></div>
     <div class="table-wrap" id="previewTable"></div>
   </div>
@@ -242,6 +285,7 @@ td.changed { background: var(--orange-bg); }
   <!-- Compare -->
   <div class="card hidden" id="compareCard">
     <div class="card-title">Vorher / Nachher</div>
+    <div id="fileSelectorCompare"></div>
     <div class="compare-tabs">
       <div class="compare-tab active-orig" id="cmpTabOrig" onclick="switchCompare('orig')">Original</div>
       <div class="compare-tab" id="cmpTabResult" onclick="switchCompare('result')">Pseudonymisiert</div>
@@ -265,14 +309,12 @@ td.changed { background: var(--orange-bg); }
 
 <script>
 // ================= STATE =================
+let fileQueue = [];         // [{name, type, raw, encoding, bomLength, parsed, detectedSep}]
+let activeFileIdx = 0;      // Currently previewed file index
 let currentMode = 'encrypt';
-let fileData = null;       // { name, type:'csv'|'xlsx', raw:ArrayBuffer }
-let parsedData = null;     // { sheets: [{name, headers, rows, metaRows}] }
-let resultBlob = null;
-let resultName = '';
+let batchResults = [];      // [{blob, name, totalCells, sheetsProcessed, sheetsSkipped, resultSheets}]
 let activeSheet = 0;
-let compareView = 'orig'; // 'orig' or 'result'
-let lastResultSheets = null;
+let compareView = 'orig';
 
 // ================= COLUMN ALIASES (identical to pseudonym.py) =================
 const COLUMN_ALIASES = {
@@ -450,70 +492,85 @@ function encodeText(text, encoding) {
 
 // ================= FILE HANDLING =================
 
-function handleFile(file) {
-  fileData = { name: file.name, type: file.name.match(/\.xlsx$/i) ? 'xlsx' : 'csv', raw: null, encoding: 'utf-8', bomLength: 0 };
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    fileData.raw = e.target.result;
-    const enc = detectEncoding(fileData.raw);
-    fileData.encoding = enc.encoding;
-    fileData.bomLength = enc.bomLength;
-    parseFile();
-    updateDropzoneUI();
-    updateActionState();
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function parseFile() {
-  if (fileData.type === 'xlsx') {
-    const wb = XLSX.read(fileData.raw, { type: 'array' });
-    parsedData = { sheets: wb.SheetNames.map(name => {
+function parseOneFile(fobj) {
+  if (fobj.type === 'xlsx') {
+    const wb = XLSX.read(fobj.raw, { type: 'array' });
+    fobj.parsed = { sheets: wb.SheetNames.map(name => {
       const ws = wb.Sheets[name];
       const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       if (json.length === 0) return { name, headers: [], rows: [], metaRows: [] };
       const allRows = json.map(r => r.map(c => c == null ? '' : String(c)));
       const headerIdx = findHeaderRow(allRows);
-      return {
-        name,
-        headers: allRows[headerIdx],
-        metaRows: allRows.slice(0, headerIdx),
-        rows: allRows.slice(headerIdx + 1)
-      };
+      return { name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) };
     })};
-    document.getElementById('sepGroup').classList.add('hidden');
   } else {
-    const rawSlice = new Uint8Array(fileData.raw).slice(fileData.bomLength);
-    const text = new TextDecoder(fileData.encoding).decode(rawSlice);
-    // Auto-detect separator from first line
+    const rawSlice = new Uint8Array(fobj.raw).slice(fobj.bomLength);
+    const text = new TextDecoder(fobj.encoding).decode(rawSlice);
     const firstLine = text.split('\n')[0];
     let detectedSep = ',';
     if (firstLine.includes('\t')) detectedSep = '\t';
     else if (firstLine.includes(';')) detectedSep = ';';
-    const selVal = detectedSep === '\t' ? '\\t' : detectedSep;
-    document.getElementById('sepSelect').value = selVal;
-    const sep = selVal;
-    const result = Papa.parse(text, { delimiter: sep === '\\t' ? '\t' : sep, header: false, skipEmptyLines: false });
-    const data = result.data;
-    const allRows = data.map(r => r.map(c => c == null ? '' : String(c)));
-    if (allRows.length === 0) { parsedData = { sheets: [{ name: 'CSV', headers: [], rows: [], metaRows: [] }] }; return; }
+    fobj.detectedSep = detectedSep;
+    const result = Papa.parse(text, { delimiter: detectedSep, header: false, skipEmptyLines: false });
+    const allRows = result.data.map(r => r.map(c => c == null ? '' : String(c)));
+    if (allRows.length === 0) { fobj.parsed = { sheets: [{ name: fobj.name, headers: [], rows: [], metaRows: [] }] }; return; }
     const headerIdx = findHeaderRow(allRows);
-    parsedData = { sheets: [{
-      name: fileData.name,
-      headers: allRows[headerIdx],
-      metaRows: allRows.slice(0, headerIdx),
-      rows: allRows.slice(headerIdx + 1)
-    }] };
-    document.getElementById('sepGroup').classList.remove('hidden');
+    fobj.parsed = { sheets: [{ name: fobj.name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) }] };
   }
-  activeSheet = 0;
+}
+
+async function addFiles(fileList) {
+  for (const file of fileList) {
+    if (file.name.match(/\.zip$/i)) {
+      try {
+        const zip = await JSZip.loadAsync(file);
+        const supported = /\.(csv|tsv|txt|xlsx)$/i;
+        for (const [path, entry] of Object.entries(zip.files)) {
+          if (entry.dir || !supported.test(path)) continue;
+          const data = await entry.async('arraybuffer');
+          const name = path.split('/').pop();
+          const ftype = name.match(/\.xlsx$/i) ? 'xlsx' : 'csv';
+          const enc = detectEncoding(data);
+          const fobj = { name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
+          parseOneFile(fobj);
+          fileQueue.push(fobj);
+        }
+      } catch (e) {
+        console.error('ZIP-Fehler:', e);
+        alert('Fehler beim Lesen der ZIP-Datei: ' + e.message);
+      }
+    } else {
+      const data = await file.arrayBuffer();
+      const ftype = file.name.match(/\.xlsx$/i) ? 'xlsx' : 'csv';
+      const enc = detectEncoding(data);
+      const fobj = { name: file.name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
+      parseOneFile(fobj);
+      fileQueue.push(fobj);
+    }
+  }
+  activeFileIdx = 0;
+  // Set separator UI for single CSV file
+  if (fileQueue.length === 1 && fileQueue[0].type === 'csv') {
+    const selVal = fileQueue[0].detectedSep === '\t' ? '\\t' : fileQueue[0].detectedSep;
+    document.getElementById('sepSelect').value = selVal;
+  }
+  renderFileList();
   renderPreview();
+  updateDropzoneUI();
+  updateActionState();
 }
 
 function renderPreview() {
+  if (fileQueue.length === 0) return;
+  const fq = fileQueue[activeFileIdx];
+  if (!fq || !fq.parsed) return;
+  const parsedData = fq.parsed;
+
   const pc = document.getElementById('previewCard');
   pc.classList.remove('hidden');
+  renderFileSelector('fileSelectorPreview', 'selectFile');
   const tabs = document.getElementById('sheetTabs');
+  if (activeSheet >= parsedData.sheets.length) activeSheet = 0;
   const totalRows = parsedData.sheets.reduce((s, sh) => s + sh.rows.length, 0);
   const metaCount = parsedData.sheets.reduce((s, sh) => s + (sh.metaRows ? sh.metaRows.length : 0), 0);
   const metaInfo = metaCount > 0 ? `, ${metaCount} Metadaten-Zeile(n)` : '';
@@ -564,10 +621,106 @@ function renderSheetTable(containerId, sheet, showChanged, resultSheet) {
 
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// ================= FILE LIST =================
+
+const FILE_LIST_COLLAPSE_THRESHOLD = 8;
+
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  if (fileQueue.length === 0) { el.innerHTML = ''; return; }
+  const totalSize = fileQueue.reduce((s, fq) => s + fq.raw.byteLength, 0);
+  const sizeStr = totalSize < 1024*1024 ? (totalSize / 1024).toFixed(1) + ' KB' : (totalSize / (1024*1024)).toFixed(1) + ' MB';
+  const csvCount = fileQueue.filter(f => f.type === 'csv').length;
+  const xlsxCount = fileQueue.filter(f => f.type === 'xlsx').length;
+  const typeParts = [];
+  if (csvCount) typeParts.push(csvCount + ' CSV');
+  if (xlsxCount) typeParts.push(xlsxCount + ' XLSX');
+  const isLarge = fileQueue.length > FILE_LIST_COLLAPSE_THRESHOLD;
+
+  let html = `<div class="file-list-header"><span class="file-list-summary">${fileQueue.length} Dateien \u00b7 ${sizeStr} \u00b7 ${typeParts.join(', ')}</span><div class="file-list-actions">`;
+  if (isLarge) html += `<button class="file-action-btn" onclick="toggleFileList()">Liste anzeigen \u25bc</button>`;
+  html += `<button class="file-action-btn" style="border-color:var(--red);color:var(--red);" onclick="clearFiles()">Alle entfernen</button></div></div>`;
+  const displayStyle = isLarge ? ' style="display:none"' : '';
+  html += `<div class="file-list-scroll" id="fileListScroll"${displayStyle}>`;
+  for (let i = 0; i < fileQueue.length; i++) {
+    const fq = fileQueue[i];
+    const size = fq.raw.byteLength;
+    const fSizeStr = size < 1024 ? size + ' B' : (size / 1024).toFixed(1) + ' KB';
+    const icon = fq.type === 'xlsx' ? '\uD83D\uDCCA' : '\uD83D\uDCC4';
+    const activeClass = i === activeFileIdx ? ' active' : '';
+    html += `<div class="file-item${activeClass}" onclick="selectFile(${i})"><span>${icon}</span><span class="file-item-name">${esc(fq.name)}</span><span class="file-item-size">${fSizeStr}</span><button class="file-item-remove" onclick="event.stopPropagation();removeFile(${i})" title="Entfernen">\u00d7</button></div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+  document.getElementById('sepGroup').classList.toggle('hidden', fileQueue.length !== 1 || fileQueue[0].type === 'xlsx');
+}
+
+function toggleFileList() {
+  const scroll = document.getElementById('fileListScroll');
+  const btn = event.target;
+  if (scroll.style.display === 'none') { scroll.style.display = ''; btn.innerHTML = 'Liste verbergen \u25b2'; }
+  else { scroll.style.display = 'none'; btn.innerHTML = 'Liste anzeigen \u25bc'; }
+}
+
+function selectFile(idx) {
+  activeFileIdx = idx;
+  activeSheet = 0;
+  renderFileList();
+  renderPreview();
+}
+
+function removeFile(idx) {
+  fileQueue.splice(idx, 1);
+  if (activeFileIdx >= fileQueue.length) activeFileIdx = Math.max(0, fileQueue.length - 1);
+  renderFileList();
+  if (fileQueue.length > 0) renderPreview();
+  else document.getElementById('previewCard').classList.add('hidden');
+  updateDropzoneUI();
+  updateActionState();
+}
+
+function clearFiles() {
+  fileQueue = [];
+  activeFileIdx = 0;
+  document.getElementById('previewCard').classList.add('hidden');
+  document.getElementById('fileList').innerHTML = '';
+  updateDropzoneUI();
+  updateActionState();
+}
+
+// ================= FILE SELECTOR =================
+
+const FILE_SELECTOR_TAB_THRESHOLD = 8;
+
+function renderFileSelector(containerId, onSelectFnName) {
+  const el = document.getElementById(containerId);
+  if (fileQueue.length <= 1) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = '';
+  if (fileQueue.length <= FILE_SELECTOR_TAB_THRESHOLD) {
+    el.innerHTML = `<div class="file-tabs">${fileQueue.map((fq, i) =>
+      `<div class="file-tab${i === activeFileIdx ? ' active-file' : ''}" onclick="${onSelectFnName}(${i})">${esc(fq.name)}</div>`
+    ).join('')}</div>`;
+  } else {
+    const options = fileQueue.map((fq, i) => `<option value="${i}"${i === activeFileIdx ? ' selected' : ''}>${esc(fq.name)}</option>`).join('');
+    el.innerHTML = `<div class="file-selector">
+      <button class="file-selector-nav" onclick="${onSelectFnName}(Math.max(0,activeFileIdx-1))">\u25c4</button>
+      <select onchange="${onSelectFnName}(+this.value)">${options}</select>
+      <button class="file-selector-nav" onclick="${onSelectFnName}(Math.min(fileQueue.length-1,activeFileIdx+1))">\u25ba</button>
+      <span class="file-selector-count">${activeFileIdx+1} / ${fileQueue.length}</span>
+    </div>`;
+  }
+}
+
+function selectFileAndCompare(idx) {
+  selectFile(idx);
+  renderFileSelector('fileSelectorCompare', 'selectFileAndCompare');
+  switchCompare(compareView);
+}
+
 // ================= PROCESSING =================
 
 async function processFile() {
-  if (!fileData || !parsedData) return;
+  if (fileQueue.length === 0) return;
   const secret = document.getElementById('secretInput').value;
   if (!secret) { alert('Bitte Secret eingeben.'); return; }
 
@@ -576,6 +729,7 @@ async function processFile() {
   const pb = document.getElementById('progressBar');
   const pf = document.getElementById('progressFill');
   pb.classList.add('active'); pf.style.width = '0%';
+  const pt = document.getElementById('progressText');
 
   const logEl = document.getElementById('logArea');
   document.getElementById('logCard').classList.remove('hidden');
@@ -584,179 +738,167 @@ async function processFile() {
 
   const mode = currentMode;
   const action = mode === 'encrypt' ? 'Pseudonymisierung' : 'De-Pseudonymisierung';
-  log(`${action} gestartet...`);
-  log(`Datei: ${fileData.name} (${fileData.type.toUpperCase()})`);
+  const isBatch = fileQueue.length > 1;
+  if (isBatch) { log(`Batch-${action}: ${fileQueue.length} Dateien\n`); pt.classList.add('active'); }
   log(`Leite Schluessel ab (PBKDF2, 100k Runden)...`);
 
   let keyBytes;
   try { keyBytes = await deriveKey(secret); } catch (e) { log('FEHLER: ' + e.message, 'err'); btn.disabled = false; return; }
   log('Schluessel abgeleitet.', 'ok');
-  pf.style.width = '10%';
+  pf.style.width = '5%';
 
   const transform = mode === 'encrypt' ? encryptValue : decryptValue;
-  let totalCells = 0;
-  let sheetsProcessed = 0;
-  let sheetsSkipped = 0;
-  const resultSheets = [];
+  batchResults = [];
+  let grandTotalCells = 0, grandSheetsProcessed = 0, grandSheetsSkipped = 0;
 
-  for (let si = 0; si < parsedData.sheets.length; si++) {
-    const sheet = parsedData.sheets[si];
-    const pct = 10 + (si / parsedData.sheets.length) * 80;
-    pf.style.width = pct + '%';
+  for (let fi = 0; fi < fileQueue.length; fi++) {
+    const fq = fileQueue[fi];
+    const parsedData = fq.parsed;
+    const filePct = 5 + (fi / fileQueue.length) * 90;
+    pf.style.width = filePct + '%';
+    if (isBatch) pt.textContent = `Datei ${fi+1} / ${fileQueue.length} \u2014 ${fq.name}`;
+    if (isBatch) log(`\n--- Datei ${fi+1}/${fileQueue.length}: ${fq.name} ---`);
+    else log(`Datei: ${fq.name} (${fq.type.toUpperCase()})`);
 
-    if (sheet.headers.length === 0 || sheet.rows.length === 0) {
-      log(`  Sheet "${sheet.name}": uebersprungen (leer)`, 'warn');
-      sheetsSkipped++;
-      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
-      continue;
-    }
+    let totalCells = 0, sheetsProcessed = 0, sheetsSkipped = 0;
+    const resultSheets = [];
 
-    const idCols = findIdentityCols(sheet.headers);
-    if (Object.keys(idCols).length === 0) {
-      log(`  Sheet "${sheet.name}": keine Identitaetsspalten erkannt [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
-      sheetsSkipped++;
-      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
-      continue;
-    }
-
-    const colIndices = {};
-    for (const [canon, actual] of Object.entries(idCols)) {
-      colIndices[canon] = sheet.headers.indexOf(actual);
-    }
-    const nameColName = findNameCol(sheet.headers);
-    let nameColIdx = nameColName ? sheet.headers.indexOf(nameColName) : -1;
-
-    // NAME composite check (erkennt auch Reihenfolge: "Fam Vor" vs "Vor Fam")
-    let nameIsComposite = false;
-    let nameOrder = 'fam_vor';
-    const famIdx = colIndices.familienname ?? -1;
-    const vorIdx = colIndices.vorname ?? -1;
-    if (nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0 && sheet.rows.length > 0) {
-      const nv = (sheet.rows[0][nameColIdx] || '').trim();
-      const fv = (sheet.rows[0][famIdx] || '').trim();
-      const vv = (sheet.rows[0][vorIdx] || '').trim();
-      if (nv === `${fv} ${vv}`.trim()) { nameIsComposite = true; nameOrder = 'fam_vor'; }
-      else if (nv === `${vv} ${fv}`.trim()) { nameIsComposite = true; nameOrder = 'vor_fam'; }
-    }
-
-    const colInfo = Object.values(idCols).join(', ') + (nameIsComposite && nameColName ? ' + ' + nameColName : '');
-    log(`  Sheet "${sheet.name}": ${colInfo}`);
-
-    const newRows = [];
-    let sheetCells = 0;
-    for (let ri = 0; ri < sheet.rows.length; ri++) {
-      const row = [...sheet.rows[ri]];
-      for (const [canon, ci] of Object.entries(colIndices)) {
-        const val = (row[ci] || '').trim();
-        if (val) {
-          row[ci] = await transform(keyBytes, val);
-          sheetCells++;
+    for (let si = 0; si < parsedData.sheets.length; si++) {
+      const sheet = parsedData.sheets[si];
+      if (sheet.headers.length === 0 || sheet.rows.length === 0) {
+        log(`  Sheet "${sheet.name}": uebersprungen (leer)`, 'warn');
+        sheetsSkipped++;
+        resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
+        continue;
+      }
+      const idCols = findIdentityCols(sheet.headers);
+      if (Object.keys(idCols).length === 0) {
+        log(`  Sheet "${sheet.name}": keine Identitaetsspalten [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
+        sheetsSkipped++;
+        resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
+        continue;
+      }
+      const colIndices = {};
+      for (const [canon, actual] of Object.entries(idCols)) colIndices[canon] = sheet.headers.indexOf(actual);
+      const nameColName = findNameCol(sheet.headers);
+      let nameColIdx = nameColName ? sheet.headers.indexOf(nameColName) : -1;
+      let nameIsComposite = false, nameOrder = 'fam_vor';
+      const famIdx = colIndices.familienname ?? -1;
+      const vorIdx = colIndices.vorname ?? -1;
+      if (nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0 && sheet.rows.length > 0) {
+        const nv = (sheet.rows[0][nameColIdx]||'').trim(), fv = (sheet.rows[0][famIdx]||'').trim(), vv = (sheet.rows[0][vorIdx]||'').trim();
+        if (nv === `${fv} ${vv}`.trim()) { nameIsComposite = true; nameOrder = 'fam_vor'; }
+        else if (nv === `${vv} ${fv}`.trim()) { nameIsComposite = true; nameOrder = 'vor_fam'; }
+      }
+      log(`  Sheet "${sheet.name}": ${Object.values(idCols).join(', ')}${nameIsComposite && nameColName ? ' + '+nameColName : ''}`);
+      const newRows = [];
+      let sheetCells = 0;
+      for (let ri = 0; ri < sheet.rows.length; ri++) {
+        const row = [...sheet.rows[ri]];
+        for (const [canon, ci] of Object.entries(colIndices)) {
+          const val = (row[ci]||'').trim();
+          if (val) { row[ci] = await transform(keyBytes, val); sheetCells++; }
+        }
+        if (nameIsComposite && nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0) {
+          if (nameOrder === 'vor_fam') row[nameColIdx] = `${(row[vorIdx]||'').trim()} ${(row[famIdx]||'').trim()}`.trim();
+          else row[nameColIdx] = `${(row[famIdx]||'').trim()} ${(row[vorIdx]||'').trim()}`.trim();
+        }
+        newRows.push(row);
+        if (ri % 100 === 0) {
+          const innerPct = 5 + ((fi + (si + ri/sheet.rows.length)/parsedData.sheets.length) / fileQueue.length) * 90;
+          pf.style.width = innerPct + '%';
+          await new Promise(r => setTimeout(r, 0));
         }
       }
-      if (nameIsComposite && nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0) {
-        if (nameOrder === 'vor_fam') row[nameColIdx] = `${(row[vorIdx]||'').trim()} ${(row[famIdx]||'').trim()}`.trim();
-        else row[nameColIdx] = `${(row[famIdx]||'').trim()} ${(row[vorIdx]||'').trim()}`.trim();
-      }
-      newRows.push(row);
-      // Update progress within sheet
-      if (ri % 100 === 0) {
-        const innerPct = 10 + ((si + ri / sheet.rows.length) / parsedData.sheets.length) * 80;
-        pf.style.width = innerPct + '%';
-        await new Promise(r => setTimeout(r, 0)); // yield to UI
-      }
-    }
-    totalCells += sheetCells;
-    sheetsProcessed++;
-    log(`    -> ${sheetCells} Zellen verarbeitet`, 'ok');
-    resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: newRows });
-  }
-
-  pf.style.width = '95%';
-
-  // Build output
-  const suffix = mode === 'encrypt' ? '_pseudo' : '_restored';
-  if (fileData.type === 'xlsx') {
-    const wb = XLSX.utils.book_new();
-    for (const rs of resultSheets) {
-      const data = [...(rs.metaRows || []), rs.headers, ...rs.rows];
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, rs.name);
-    }
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    resultBlob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    resultName = fileData.name.replace(/\.xlsx$/i, suffix + '.xlsx');
-  } else {
-    const sep = document.getElementById('sepSelect').value === '\\t' ? '\t' : document.getElementById('sepSelect').value;
-    const rs = resultSheets[0];
-    // Detect quoting from header row, not first line (metadata rows may differ)
-    const rawBytes = new Uint8Array(fileData.raw);
-    const origDecoded = new TextDecoder(fileData.encoding).decode(rawBytes.slice(fileData.bomLength));
-    const origLines = origDecoded.includes('\r\n') ? origDecoded.split('\r\n') : origDecoded.split('\n');
-    const headerLineIdx = rs.metaRows ? rs.metaRows.length : 0;
-    const headerLineRaw = (origLines[headerLineIdx] || '').trim();
-    const quoteAll = headerLineRaw.startsWith('"');
-
-    // Build output: metaRows preserved as raw text
-    const useCrlf = origDecoded.includes('\r\n');
-    const lineEnd = useCrlf ? '\r\n' : '\n';
-    let finalCsv = '';
-
-    // Metadata rows: preserve raw text exactly
-    if (headerLineIdx > 0) {
-      finalCsv = origLines.slice(0, headerLineIdx).join(lineEnd) + lineEnd;
+      totalCells += sheetCells; sheetsProcessed++;
+      log(`    -> ${sheetCells} Zellen verarbeitet`, 'ok');
+      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: newRows });
     }
 
-    // Header + data rows via PapaParse
-    const dataForPapa = [rs.headers, ...rs.rows];
-    let csvStr = Papa.unparse(dataForPapa, { delimiter: sep, quotes: quoteAll });
-    if (useCrlf && !csvStr.includes('\r\n')) csvStr = csvStr.replace(/\n/g, '\r\n');
-    if (!useCrlf) csvStr = csvStr.replace(/\r\n/g, '\n');
-    finalCsv += csvStr;
-
-    const parts = [];
-    if (fileData.bomLength > 0) parts.push(new Uint8Array(fileData.raw, 0, fileData.bomLength));
-    parts.push(encodeText(finalCsv, fileData.encoding));
-    resultBlob = new Blob(parts, { type: 'text/csv;charset=utf-8' });
-    const ext = fileData.name.match(/\.[^.]+$/)?.[0] || '.csv';
-    resultName = fileData.name.replace(/\.[^.]+$/, suffix + ext);
+    // Build output blob for this file
+    const suffix = mode === 'encrypt' ? '_pseudo' : '_restored';
+    let blob, outName;
+    if (fq.type === 'xlsx') {
+      const wb = XLSX.utils.book_new();
+      for (const rs of resultSheets) { const data = [...(rs.metaRows||[]), rs.headers, ...rs.rows]; const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, rs.name); }
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      outName = fq.name.replace(/\.xlsx$/i, suffix + '.xlsx');
+    } else {
+      const sep = fq.detectedSep || ',';
+      const rs = resultSheets[0];
+      const rawBytes = new Uint8Array(fq.raw);
+      const origDecoded = new TextDecoder(fq.encoding).decode(rawBytes.slice(fq.bomLength));
+      const origLines = origDecoded.includes('\r\n') ? origDecoded.split('\r\n') : origDecoded.split('\n');
+      const headerLineIdx = rs.metaRows ? rs.metaRows.length : 0;
+      const headerLineRaw = (origLines[headerLineIdx] || '').trim();
+      const quoteAll = headerLineRaw.startsWith('"');
+      const useCrlf = origDecoded.includes('\r\n');
+      const lineEnd = useCrlf ? '\r\n' : '\n';
+      let finalCsv = '';
+      if (headerLineIdx > 0) finalCsv = origLines.slice(0, headerLineIdx).join(lineEnd) + lineEnd;
+      const dataForPapa = [rs.headers, ...rs.rows];
+      let csvStr = Papa.unparse(dataForPapa, { delimiter: sep, quotes: quoteAll });
+      if (useCrlf && !csvStr.includes('\r\n')) csvStr = csvStr.replace(/\n/g, '\r\n');
+      if (!useCrlf) csvStr = csvStr.replace(/\r\n/g, '\n');
+      finalCsv += csvStr;
+      const parts = [];
+      if (fq.bomLength > 0) parts.push(new Uint8Array(fq.raw, 0, fq.bomLength));
+      parts.push(encodeText(finalCsv, fq.encoding));
+      blob = new Blob(parts, { type: 'text/csv;charset=utf-8' });
+      const ext = fq.name.match(/\.[^.]+$/)?.[0] || '.csv';
+      outName = fq.name.replace(/\.[^.]+$/, suffix + ext);
+    }
+    grandTotalCells += totalCells; grandSheetsProcessed += sheetsProcessed; grandSheetsSkipped += sheetsSkipped;
+    batchResults.push({ blob, name: outName, totalCells, sheetsProcessed, sheetsSkipped, resultSheets });
   }
 
   pf.style.width = '100%';
-  log(`\n${action} abgeschlossen.`, 'ok');
-  log(`  ${sheetsProcessed} Sheet(s) verarbeitet, ${totalCells} Zellen`, 'ok');
-  if (sheetsSkipped) log(`  ${sheetsSkipped} Sheet(s) uebersprungen`, 'warn');
+  if (isBatch) { log(`\nBatch-${action} abgeschlossen.`, 'ok'); log(`  ${fileQueue.length} Datei(en), ${grandSheetsProcessed} Sheet(s), ${grandTotalCells} Zellen`, 'ok'); }
+  else { log(`\n${action} abgeschlossen.`, 'ok'); log(`  ${grandSheetsProcessed} Sheet(s) verarbeitet, ${grandTotalCells} Zellen`, 'ok'); }
+  if (grandSheetsSkipped) log(`  ${grandSheetsSkipped} Sheet(s) uebersprungen`, 'warn');
 
-  // Stats
   document.getElementById('resultCard').classList.remove('hidden');
   document.getElementById('statsRow').innerHTML = `
-    <div class="stat"><div class="stat-num">${sheetsProcessed}</div><div class="stat-label">Sheets</div></div>
-    <div class="stat"><div class="stat-num">${totalCells}</div><div class="stat-label">Zellen</div></div>
-    <div class="stat"><div class="stat-num">${sheetsSkipped}</div><div class="stat-label">Uebersprungen</div></div>`;
-  document.getElementById('dlName').textContent = resultName;
+    ${isBatch ? `<div class="stat"><div class="stat-num">${fileQueue.length}</div><div class="stat-label">Dateien</div></div>` : ''}
+    <div class="stat"><div class="stat-num">${grandSheetsProcessed}</div><div class="stat-label">Sheets</div></div>
+    <div class="stat"><div class="stat-num">${grandTotalCells}</div><div class="stat-label">Zellen</div></div>
+    <div class="stat"><div class="stat-num">${grandSheetsSkipped}</div><div class="stat-label">Uebersprungen</div></div>`;
+  const dlName = batchResults.length === 1 ? batchResults[0].name : `batch_${mode}_${batchResults.length}dateien.zip`;
+  document.getElementById('dlName').textContent = dlName;
 
-  // Compare
-  lastResultSheets = resultSheets;
   const cc = document.getElementById('compareCard');
   cc.classList.remove('hidden');
-  const resultLabel = mode === 'encrypt' ? 'Pseudonymisiert' : 'Wiederhergestellt';
-  document.getElementById('cmpTabResult').textContent = resultLabel;
+  document.getElementById('cmpTabResult').textContent = mode === 'encrypt' ? 'Pseudonymisiert' : 'Wiederhergestellt';
   compareView = 'orig';
+  renderFileSelector('fileSelectorCompare', 'selectFileAndCompare');
   switchCompare('orig');
 
-  // History
-  addHistory(fileData.name, mode);
+  if (isBatch) addHistory(`${fileQueue.length} Dateien (Batch)`, mode);
+  else addHistory(fileQueue[0].name, mode);
 
   btn.disabled = false;
-  setTimeout(() => { pb.classList.remove('active'); }, 1000);
+  setTimeout(() => { pb.classList.remove('active'); pt.classList.remove('active'); }, 1000);
 }
 
-function downloadResult() {
-  if (!resultBlob) return;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(resultBlob);
-  a.download = resultName;
-  a.click();
-  URL.revokeObjectURL(a.href);
+async function downloadResult() {
+  if (batchResults.length === 0) return;
+  if (batchResults.length === 1) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(batchResults[0].blob);
+    a.download = batchResults[0].name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } else {
+    const zip = new JSZip();
+    for (const r of batchResults) zip.file(r.name, r.blob);
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(zipBlob);
+    a.download = `batch_${currentMode}_${batchResults.length}dateien.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 }
 
 // ================= UI =================
@@ -775,23 +917,28 @@ function updateDropzoneUI() {
   const dz = document.getElementById('dropzone');
   const icon = document.getElementById('dzIcon');
   const text = document.getElementById('dzText');
-  if (fileData) {
+  if (fileQueue.length > 0) {
     dz.classList.add('has-file');
-    icon.textContent = '\u2705';
-    text.innerHTML = `<span class="dropzone-file">${esc(fileData.name)}</span><br><span class="dropzone-text">Klicken oder ziehen fuer neue Datei</span>`;
+    if (fileQueue.length === 1) {
+      icon.textContent = '\u2705';
+      text.innerHTML = `<span class="dropzone-file">${esc(fileQueue[0].name)}</span><br><span class="dropzone-text">Weitere Dateien hinzufuegen oder klicken</span>`;
+    } else {
+      icon.textContent = '\uD83D\uDCC2';
+      text.innerHTML = `<span class="dropzone-file">${fileQueue.length} Dateien ausgewaehlt</span><br><span class="dropzone-text">Weitere hinzufuegen oder klicken</span>`;
+    }
   } else {
     dz.classList.remove('has-file');
     icon.textContent = '\uD83D\uDCC4';
-    text.textContent = 'CSV oder XLSX hierher ziehen — oder klicken';
+    text.textContent = 'CSV / XLSX / ZIP hierher ziehen \u2014 oder klicken (Mehrfachauswahl)';
   }
 }
 
 function updateActionState() {
   const btn = document.getElementById('actionBtn');
   const secret = document.getElementById('secretInput').value;
-  btn.disabled = !fileData || !secret;
+  btn.disabled = fileQueue.length === 0 || !secret;
   const hint = document.getElementById('actionHint');
-  if (!fileData) hint.textContent = 'Zuerst eine Datei waehlen';
+  if (fileQueue.length === 0) hint.textContent = 'Zuerst Datei(en) waehlen';
   else if (!secret) hint.textContent = 'Secret eingeben';
   else hint.textContent = '';
 }
@@ -817,8 +964,22 @@ document.getElementById('eyeBtn').addEventListener('click', () => {
 // Secret input
 document.getElementById('secretInput').addEventListener('input', updateActionState);
 
-// Separator change re-parses CSV
-document.getElementById('sepSelect').addEventListener('change', () => { if (fileData && fileData.type === 'csv') parseFile(); });
+// Separator change re-parses single CSV
+document.getElementById('sepSelect').addEventListener('change', () => {
+  if (fileQueue.length === 1 && fileQueue[0].type === 'csv') {
+    const fobj = fileQueue[0];
+    const rawSlice = new Uint8Array(fobj.raw).slice(fobj.bomLength);
+    const text = new TextDecoder(fobj.encoding).decode(rawSlice);
+    const selVal = document.getElementById('sepSelect').value;
+    const sep = selVal === '\\t' ? '\t' : selVal;
+    fobj.detectedSep = sep;
+    const result = Papa.parse(text, { delimiter: sep, header: false, skipEmptyLines: false });
+    const allRows = result.data.map(r => r.map(c => c == null ? '' : String(c)));
+    const headerIdx = findHeaderRow(allRows);
+    fobj.parsed = { sheets: [{ name: fobj.name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) }] };
+    renderPreview();
+  }
+});
 
 // Drag & Drop
 const dz = document.getElementById('dropzone');
@@ -828,9 +989,9 @@ dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('d
 dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
 dz.addEventListener('drop', (e) => {
   e.preventDefault(); dz.classList.remove('dragover');
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
 });
-fi.addEventListener('change', () => { if (fi.files.length) handleFile(fi.files[0]); });
+fi.addEventListener('change', () => { if (fi.files.length) addFiles(fi.files); });
 
 // Info popup
 document.getElementById('infoBtn').addEventListener('click', (e) => {
@@ -842,17 +1003,16 @@ document.addEventListener('click', () => document.getElementById('infoPopup').cl
 // Compare toggle
 function switchCompare(view) {
   compareView = view;
-  const tabOrig = document.getElementById('cmpTabOrig');
-  const tabResult = document.getElementById('cmpTabResult');
-  tabOrig.className = 'compare-tab' + (view === 'orig' ? ' active-orig' : '');
-  tabResult.className = 'compare-tab' + (view === 'result' ? ' active-result' : '');
-  if (parsedData && lastResultSheets) {
-    const origSheet = parsedData.sheets[activeSheet];
-    const resSheet = lastResultSheets[activeSheet];
-    if (view === 'orig') {
-      renderSheetTable('compareTable', origSheet, true, resSheet);
-    } else {
-      renderSheetTable('compareTable', resSheet, false);
+  document.getElementById('cmpTabOrig').className = 'compare-tab' + (view === 'orig' ? ' active-orig' : '');
+  document.getElementById('cmpTabResult').className = 'compare-tab' + (view === 'result' ? ' active-result' : '');
+  if (fileQueue.length > 0 && batchResults.length > activeFileIdx) {
+    const fq = fileQueue[activeFileIdx];
+    const br = batchResults[activeFileIdx];
+    if (fq && fq.parsed && br && br.resultSheets) {
+      const origSheet = fq.parsed.sheets[activeSheet];
+      const resSheet = br.resultSheets[activeSheet];
+      if (view === 'orig') renderSheetTable('compareTable', origSheet, true, resSheet);
+      else renderSheetTable('compareTable', resSheet, false);
     }
   }
 }
