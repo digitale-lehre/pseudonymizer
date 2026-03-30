@@ -11,7 +11,7 @@
 
 ### 1. Datei laden
 
-Datei per **Drag & Drop** auf die Dropzone ziehen oder ueber den Dateiauswahl-Dialog laden. Unterstuetzte Formate: CSV und XLSX.
+Datei per **Drag & Drop** auf die Dropzone ziehen oder ueber den Dateiauswahl-Dialog laden. Unterstuetzte Formate: CSV, TSV, TXT und XLSX.
 
 Bei XLSX-Dateien mit mehreren Sheets werden alle Sheets angezeigt und verarbeitet.
 
@@ -113,7 +113,7 @@ Ueber den Schalter oben rechts kann zwischen hellem und dunklem Design umgeschal
 - **Alle Daten bleiben lokal** — nichts wird hochgeladen oder an Server gesendet
 - Das Secret existiert nur im Arbeitsspeicher waehrend der Verarbeitung
 - Der Verlauf speichert keine Secrets oder Dateiinhalte
-- Die einzigen externen Verbindungen sind CDN-Downloads (PapaParse, SheetJS) beim ersten Start
+- Die einzigen externen Verbindungen sind CDN-Downloads (PapaParse, SheetJS, JSZip) beim ersten Start
 
 
 ## CSV-Formaterhaltung

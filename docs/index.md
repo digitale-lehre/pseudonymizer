@@ -24,6 +24,7 @@ Willkommen im Wiki des pseudonymizer-Projekts. Hier finden Sie alle Informatione
 | Das Tool sofort nutzen (kein Install) | [Browser-GUI](usage-gui.md) |
 | Das Tool per Kommandozeile nutzen | [Installation](installation.md) → [CLI Referenz](usage-cli.md) |
 | Mehrere Dateien auf einmal verarbeiten | [CLI Batch-Modus](usage-cli.md#batch-modus) · [GUI Batch-Modus](usage-gui.md#batch-modus) |
+| Eigene Spalten zur Verschluesselung hinzufuegen | [CLI](usage-cli.md#zusaetzliche-spalten) · [GUI](usage-gui.md#zusaetzliche-spalten) |
 | Wissen welche Spalten erkannt werden | [Spalten-Referenz](column-reference.md) |
 | Ein Problem loesen | [Troubleshooting](troubleshooting.md) |
 | Die Kryptographie verstehen | [Kryptographie](cryptography.md) |

@@ -2,7 +2,7 @@
 
 ## Was macht das Tool?
 
-Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV- und XLSX-Dateien. Personenbezogene Spalten (Familienname, Vorname, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) werden durch verschluesselte Werte ersetzt, die nur mit dem richtigen Secret zurueckgefuehrt werden koennen.
+Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV-, TSV- und XLSX-Dateien. Personenbezogene Spalten (Familienname, Vorname, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) werden durch verschluesselte Werte ersetzt, die nur mit dem richtigen Secret zurueckgefuehrt werden koennen.
 
 **Verfahren:** AES-256-CBC (symmetrische Verschluesselung, deterministisch mit PBKDF2-Schluesselableitung). Es wird keine separate Key-Datei benoetigt — derselbe Secret verschluesselt und entschluesselt.
 
@@ -13,7 +13,7 @@ Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten 
 
 Kein Install noetig. Einfach `pseudonym_gui.html` im Browser oeffnen (Doppelklick).
 
-1. **Datei waehlen:** CSV oder XLSX per Drag & Drop oder Dateiauswahl laden
+1. **Datei waehlen:** CSV, TSV oder XLSX per Drag & Drop oder Dateiauswahl laden (auch mehrere oder ZIP)
 2. **Secret eingeben:** Beliebiges Passwort (muss zum Entschluesseln identisch sein)
 3. **Modus waehlen:** "Verschluesseln" oder "Entschluesseln"
 4. **Starten:** Ergebnis wird zum Download angeboten

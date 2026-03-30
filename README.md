@@ -1,6 +1,6 @@
 # pseudonymizer
 
-AES-256-CBC Pseudonymisierung fuer CSV- und XLSX-Dateien.
+AES-256-CBC Pseudonymisierung fuer CSV-, TSV- und XLSX-Dateien.
 
 Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) durch verschluesselte Pseudonyme. Gleicher Secret = gleiche Pseudonyme, umkehrbar mit demselben Secret.
 
@@ -13,8 +13,9 @@ Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Numm
 | Datei | `pseudonym_gui.html` | `pseudonym.py` |
 | Benoetigt | Nur einen Browser | Python 3.8+ |
 | Start | Doppelklick auf HTML | `python pseudonym.py ...` |
-| Formate | CSV, XLSX | CSV, XLSX |
+| Formate | CSV, TSV, XLSX | CSV, TSV, TXT, XLSX |
 | Batch-Modus | Multi-Select, Drag & Drop, ZIP | Mehrere Dateien, ZIP, `--output-dir`, `--zip` |
+| Eigene Spalten | Spaltenueberschriften anklicken | `--extra-cols "Spalte1,Spalte2"` |
 
 Beide Varianten sind **kryptografisch kompatibel** — eine mit Python verschluesselte Datei kann in der GUI entschluesselt werden und umgekehrt.
 
@@ -65,7 +66,21 @@ python pseudonym.py encrypt *.csv --secret "MeinSecret" --output-dir ./encrypted
 
 Mehr dazu: [CLI Batch-Modus](docs/usage-cli.md#batch-modus) | [GUI Batch-Modus](docs/usage-gui.md#batch-modus)
 
-**Zusaetzliche Spalten:** Neben den automatisch erkannten Identitaetsspalten koennen weitere Spalten verschluesselt werden — per `--extra-cols "Spalte1,Spalte2"` (CLI) oder durch Klick auf Spaltenueberschriften in der GUI. Siehe [Anleitung](ANLEITUNG_pseudonym.md#zusaetzliche-spalten-verschluesseln).
+## Zusaetzliche Spalten
+
+Neben den automatisch erkannten Identitaetsspalten koennen **beliebig viele weitere Spalten** zur Verschluesselung markiert werden:
+
+**Browser-GUI:** In der Dateivorschau auf eine Spaltenueberschrift klicken — sie wird hervorgehoben und beim Verschluesseln mitverarbeitet. Nochmal klicken oder × entfernt die Auswahl. Mehrere Spalten gleichzeitig auswaehlbar.
+
+**Python CLI:**
+
+```bash
+python pseudonym.py encrypt datei.csv --secret "MeinSecret" --extra-cols "Kommentar,Notiz,Bemerkung"
+```
+
+Kommagetrennte Liste beliebiger Spaltennamen. Bereits automatisch erkannte Spalten werden nicht doppelt verschluesselt.
+
+Mehr dazu: [CLI Referenz](docs/usage-cli.md#zusaetzliche-spalten) | [GUI Anleitung](docs/usage-gui.md#zusaetzliche-spalten) | [Schritt-fuer-Schritt](ANLEITUNG_pseudonym.md#zusaetzliche-spalten-verschluesseln)
 
 ## Erkannte Spalten
 

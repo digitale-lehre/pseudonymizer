@@ -87,7 +87,7 @@ python pseudonym.py encrypt *.csv --secret "..." --output-dir ./output/
 
 **Symptom:** ZIP-Datei wird als Eingabe akzeptiert, aber es werden keine Dateien verarbeitet.
 
-**Ursache:** Das ZIP-Archiv enthaelt keine CSV- oder XLSX-Dateien. Nur `.csv`, `.tsv` und `.xlsx` werden aus ZIP-Archiven extrahiert.
+**Ursache:** Das ZIP-Archiv enthaelt keine CSV- oder XLSX-Dateien. Nur `.csv`, `.tsv` und `.xlsx` werden aus ZIP-Archiven extrahiert (`.txt` wird in ZIPs uebersprungen, da es oft README-Dateien sind).
 
 
 ### Browser-GUI: ZIP-Upload funktioniert nicht
