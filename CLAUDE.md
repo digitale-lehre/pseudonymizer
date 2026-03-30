@@ -12,8 +12,9 @@ Two implementations exist — a Python CLI (`pseudonym.py`) and a standalone bro
 
 ```
 pseudonym.py            Python CLI (requires cryptography, openpyxl)
-pseudonym_gui.html      Single-file browser app (Web Crypto API + SheetJS + PapaParse via CDN)
+pseudonym_gui.html      Single-file browser app (Web Crypto API + SheetJS + PapaParse + JSZip via CDN)
 ANLEITUNG_pseudonym.md  German-language user documentation
+tests/test_batch.py     pytest tests for batch functions (process_file, ZIP I/O, etc.)
 docs/                   Wiki-style documentation (column-reference, cryptography, troubleshooting, etc.)
 ```
 
@@ -124,7 +125,7 @@ The HTML GUI must produce the same token for the same input and secret.
 
 ### HTML/JS (pseudonym_gui.html)
 - Single self-contained HTML file — all CSS and JS inline
-- External libraries via CDN only (cdnjs.cloudflare.com): PapaParse, SheetJS
+- External libraries via CDN only (cdnjs.cloudflare.com): PapaParse, SheetJS, JSZip
 - Web Crypto API for all cryptographic operations (no polyfills)
 - Vanilla JS, no framework
 - CSS custom properties for dark/light theming

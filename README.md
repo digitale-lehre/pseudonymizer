@@ -14,6 +14,7 @@ Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Numm
 | Benoetigt | Nur einen Browser | Python 3.8+ |
 | Start | Doppelklick auf HTML | `python pseudonym.py ...` |
 | Formate | CSV, XLSX | CSV, XLSX |
+| Batch-Modus | Multi-Select, Drag & Drop, ZIP | Mehrere Dateien, ZIP, `--output-dir`, `--zip` |
 
 Beide Varianten sind **kryptografisch kompatibel** — eine mit Python verschluesselte Datei kann in der GUI entschluesselt werden und umgekehrt.
 
@@ -39,6 +40,30 @@ python pseudonym.py decrypt datei_pseudo.csv --secret "MeinSecret"
 ```
 
 Mehr dazu: [CLI Referenz](docs/usage-cli.md)
+
+## Batch-Modus
+
+Beide Varianten unterstuetzen die Verarbeitung mehrerer Dateien in einem Durchgang:
+
+**Browser-GUI:** Mehrere Dateien per Drag & Drop oder Mehrfachauswahl laden, oder eine ZIP-Datei hochladen. Ergebnis wird als ZIP heruntergeladen.
+
+**Python CLI:**
+
+```bash
+# Mehrere Dateien
+python pseudonym.py encrypt datei1.csv datei2.xlsx --secret "MeinSecret"
+
+# ZIP als Eingabe
+python pseudonym.py encrypt archiv.zip --secret "MeinSecret"
+
+# Ergebnis als ZIP buendeln
+python pseudonym.py encrypt *.csv --secret "MeinSecret" --zip
+
+# Ausgabe in Verzeichnis
+python pseudonym.py encrypt *.csv --secret "MeinSecret" --output-dir ./encrypted/
+```
+
+Mehr dazu: [CLI Batch-Modus](docs/usage-cli.md#batch-modus) | [GUI Batch-Modus](docs/usage-gui.md#batch-modus)
 
 ## Erkannte Spalten
 

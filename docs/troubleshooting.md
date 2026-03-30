@@ -72,6 +72,35 @@ Falls die Datei kennwortgeschuetzt ist: Der pseudonymizer kann keine verschluess
 **Loesung:** Bei grossen Dateien (> 10.000 Zeilen) kann die Verarbeitung im Browser laenger dauern. Abwarten oder fuer sehr grosse Dateien die Python CLI verwenden.
 
 
+### Batch: "--output nur bei einzelner Datei moeglich"
+
+**Symptom:** Fehlermeldung bei Verwendung von `--output` mit mehreren Dateien.
+
+**Loesung:** `--output` / `-o` setzt einen einzelnen Ausgabepfad und funktioniert nur bei einer Datei. Fuer Batch-Verarbeitung stattdessen `--output-dir` verwenden:
+
+```bash
+python pseudonym.py encrypt *.csv --secret "..." --output-dir ./output/
+```
+
+
+### Batch: "Keine verarbeitbaren Dateien gefunden"
+
+**Symptom:** ZIP-Datei wird als Eingabe akzeptiert, aber es werden keine Dateien verarbeitet.
+
+**Ursache:** Das ZIP-Archiv enthaelt keine CSV- oder XLSX-Dateien. Nur `.csv`, `.tsv` und `.xlsx` werden aus ZIP-Archiven extrahiert.
+
+
+### Browser-GUI: ZIP-Upload funktioniert nicht
+
+**Symptom:** ZIP-Datei wird hochgeladen, aber keine Dateien erscheinen in der Liste.
+
+**Moegliche Ursachen:**
+
+1. **ZIP-Datei ist beschaedigt:** Archiv pruefen (z.B. mit `unzip -t archiv.zip`)
+2. **Keine CSV/XLSX im Archiv:** Nur `.csv`, `.tsv`, `.txt` und `.xlsx` Dateien werden extrahiert
+3. **JSZip nicht geladen:** Internetverbindung pruefen (JSZip wird wie PapaParse und SheetJS via CDN geladen)
+
+
 ## Fehlermeldungen
 
 | Meldung | Bedeutung | Loesung |
@@ -80,6 +109,8 @@ Falls die Datei kennwortgeschuetzt ist: Der pseudonymizer kann keine verschluess
 | `FEHLER: Konnte keine Spalten erkennen` | CSV-Datei ist leer oder fehlerhaft | Datei pruefen |
 | `FEHLER: Keine Identitaetsspalten gefunden` | Spaltennamen nicht erkannt | Siehe oben |
 | `FEHLER: Unbekanntes Dateiformat` | Dateiendung nicht `.csv`, `.tsv`, `.txt` oder `.xlsx` | Datei umbenennen oder konvertieren |
+| `FEHLER: --output nur bei einzelner Datei` | `--output` mit mehreren Dateien | `--output-dir` verwenden |
+| `FEHLER: Keine verarbeitbaren Dateien` | ZIP enthaelt keine CSV/XLSX | ZIP-Inhalt pruefen |
 | `HINWEIS: Repariere fehlende Drawing-Referenzen` | XLSX hat fehlerhafte Referenzen | Kein Handlungsbedarf, automatisch repariert |
 
 
