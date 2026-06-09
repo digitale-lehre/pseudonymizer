@@ -159,7 +159,7 @@ Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (
 |---|---|
 | Familienname | `FAMILIENNAME`, `Familienname`, `Zuname`, `Nachname`, `Surname`, `Family Name`, `FAMILY_NAME_OF_STUDENT`, `Last Name`, `LastName`, `Familienname oder Nachname`, `Familien- oder Nachname` |
 | Vorname | `VORNAME`, `Vorname`, `FirstName`, `FIRST_NAME_OF_STUDENT`, `First Name`, `Given Name`, `GivenName`, `Rufname` |
-| Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `Matrikelnr`, `Matrikelnr.`, `REGISTRATION_NUMBER`, `StudentID`, `Student ID`, `Matrikel`, `Kennnummer` |
+| Matrikelnummer | `MATRIKELNUMMER`, `Matrikelnummer`, `Matnr`, `Matrikelnr`, `Matrikelnr.`, `Mat.Nr.`, `Mat.Nr`, `Mat-Nr.`, `Mat-Nr`, `Mat. Nr.`, `REGISTRATION_NUMBER`, `StudentID`, `Student ID`, `Matrikel`, `Kennnummer` |
 | E-Mail | `EMAIL_ADDRESS`, `E-Mail`, `Email`, `Mail`, `E_MAIL`, `E-Mail Adresse`, `Emailadresse`, `Mailadresse`, `Attendee Email`, `E-Mail-Adresse` |
 | Pruefer/Examiner | `Examiner`, `Pruefer`, `Pruefer`, `Pruefer/in`, `PrueferIn`, `Pruefer:in`, `EXAMINER` |
 | Anzeigename | `Anzeigename`, `Display Name`, `DisplayName`, `Full Name`, `FullName`, `Student Name` |

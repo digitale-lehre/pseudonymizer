@@ -64,6 +64,9 @@ Nur erkannte Identitaetsspalten werden verschluesselt. Alle anderen Spalten blei
 | `matnr`, `MATNR` | Varianten |
 | `Matrikelnr` | Kurzform |
 | `Matrikelnr.` | Kurzform (mit Punkt) |
+| `Mat.Nr.`, `Mat.Nr` | Abkuerzung (mit/ohne Schlusspunkt, case-insensitive: auch `Mat.nr.`) |
+| `Mat-Nr.`, `Mat-Nr` | Abkuerzung (Bindestrich) |
+| `Mat. Nr.` | Abkuerzung (mit Leerzeichen) |
 | `MatrNr` | CamelCase-Kurzform |
 | `Matrikel` | Kurzform |
 | `matrikel`, `MATRIKEL` | Varianten |

@@ -52,6 +52,7 @@ COLUMN_ALIASES = {
     "matnr":        ["MATRIKELNUMMER", "Matrikelnummer", "matrikelnummer", "Matnr", "matnr",
                      "MATNR", "MatrNr", "Matrikel", "matrikel", "MATRIKEL",
                      "Matrikelnr", "Matrikelnr.",
+                     "Mat.Nr.", "Mat.Nr", "Mat-Nr.", "Mat-Nr", "Mat. Nr.",
                      "StudentID", "Student_ID", "Student ID",
                      "REGISTRATION_NUMBER", "Registration_Number", "Registration Number",
                      "ID number", "ID Number", "ID-Nummer", "Kennnummer"],

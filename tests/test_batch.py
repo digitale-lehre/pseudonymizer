@@ -351,3 +351,26 @@ def test_process_file_xlsm_preserves_vba(tmp_path):
     with zipfile.ZipFile(enc) as z:
         assert "xl/vbaProject.bin" in z.namelist()
         assert z.read("xl/vbaProject.bin") == b"DUMMY-VBA"
+
+
+def test_matnr_dot_alias_variants_recognized():
+    """'Mat.Nr.'-Varianten werden als matnr erkannt (case-insensitive,
+    mit/ohne Schlusspunkt, Bindestrich- und Leerzeichen-Schreibweise)."""
+    from pseudonym import find_identity_cols
+    for header in ["Mat.nr.", "Mat.Nr.", "MAT.NR.", "Mat.Nr", "Mat-Nr.", "Mat-Nr", "Mat. Nr."]:
+        found = find_identity_cols([header])
+        assert found.get("matnr") == header, f"{header!r} nicht als matnr erkannt: {found}"
+
+
+def test_matnr_dot_alias_encrypted_roundtrip(tmp_path):
+    """CSV mit 'Mat.nr.'-Spalte wird verschluesselt und exakt wiederhergestellt."""
+    src = tmp_path / "data.csv"
+    src.write_text("Mat.nr.,Vorname\n01634795,Max\n", encoding="utf-8")
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    content = enc.read_text(encoding="utf-8")
+    assert "01634795" not in content
+    assert "Mat.nr." in content  # Header bleibt
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    assert "01634795" in dec.read_text(encoding="utf-8")

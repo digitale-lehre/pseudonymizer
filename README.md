@@ -92,7 +92,7 @@ Das Tool erkennt automatisch verschiedene Schreibweisen (case-insensitive):
 |---|---|
 | **Familienname** | FAMILIENNAME, Zuname, Nachname, Surname, Family Name, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname, Familien- oder Nachname |
 | **Vorname** | VORNAME, FirstName, FIRST_NAME_OF_STUDENT, First Name, Given Name, GivenName, Rufname |
-| **Matrikelnummer** | MATRIKELNUMMER, Matnr, Matrikelnr, Matrikelnr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer |
+| **Matrikelnummer** | MATRIKELNUMMER, Matnr, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer |
 | **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, E-Mail Adresse, Emailadresse, Mailadresse, Attendee Email |
 | **Pruefer** | Examiner, Pruefer, Pruefer, Pruefer/in, PrueferIn, Pruefer:in |
 | **Anzeigename** | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |

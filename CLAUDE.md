@@ -32,7 +32,7 @@ docs/                   Wiki-style documentation (column-reference, cryptography
 |--------------|---------|
 | familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Last name, Lastname, Surname, Family Name, Family_Name, Familienname oder Nachname, Familien- oder Nachname |
 | vorname | VORNAME, Vorname, FirstName, FIRST_NAME_OF_STUDENT, First Name, First name, Given Name, GivenName, Given name, Rufname |
-| matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, Matrikelnr, Matrikelnr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer, ID number, ID Number, ID-Nummer |
+| matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer, ID number, ID Number, ID-Nummer |
 | email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL, E-Mail des Teilnehmers, Attendee Email, E-Mail-Adresse, E-Mail Adresse, Emailadresse, Mailadresse, Email address, Email Address |
 | pruefer | Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in |
 | anzeigename | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |
