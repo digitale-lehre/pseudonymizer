@@ -284,3 +284,22 @@ def test_name_column_only_no_other_identity(tmp_path):
     process_file(str(enc), str(dec), "secret", "decrypt", ",")
     restored = dec.read_text(encoding="utf-8")
     assert "Mustermann" in restored and "Testerin" in restored
+
+
+def test_xlsx_name_not_composite_fallback(tmp_path):
+    """XLSX: Name alongside Vorname+Familienname but composite check fails
+    (title) -> Name still encrypted as a whole single-token value, round-trips."""
+    src = tmp_path / "data.xlsx"
+    src.write_bytes(_build_xlsx_bytes(
+        [["Vorname", "Familienname", "Name"],
+         ["Max", "Mustermann", "Dr. Max Mustermann"]]))
+    enc = tmp_path / "data_pseudo.xlsx"
+    process_file(str(src), str(enc), "secret", "encrypt")
+    ws = load_workbook(enc).active
+    name_val = ws.cell(row=2, column=3).value
+    assert name_val != "Dr. Max Mustermann"   # Name encrypted
+    assert " " not in name_val                 # single token, NOT recomposed
+    dec = tmp_path / "data_restored.xlsx"
+    process_file(str(enc), str(dec), "secret", "decrypt")
+    ws2 = load_workbook(dec).active
+    assert ws2.cell(row=2, column=3).value == "Dr. Max Mustermann"
