@@ -219,7 +219,7 @@ td.changed { background: var(--orange-bg); }
       <div id="dzText" class="dropzone-text">CSV oder XLSX hierher ziehen — oder klicken</div>
     </div>
     <div id="fileList" class="file-list"></div>
-    <input type="file" id="fileInput" accept=".csv,.xlsx,.tsv,.txt,.zip" multiple style="display:none">
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.xlsm,.tsv,.txt,.zip" multiple style="display:none">
   </div>
 
   <div class="card">
@@ -535,12 +535,12 @@ async function addFiles(fileList) {
     if (file.name.match(/\.zip$/i)) {
       try {
         const zip = await JSZip.loadAsync(file);
-        const supported = /\.(csv|tsv|txt|xlsx)$/i;
+        const supported = /\.(csv|tsv|txt|xlsx|xlsm)$/i;
         for (const [path, entry] of Object.entries(zip.files)) {
           if (entry.dir || !supported.test(path)) continue;
           const data = await entry.async('arraybuffer');
           const name = path.split('/').pop();
-          const ftype = name.match(/\.xlsx$/i) ? 'xlsx' : 'csv';
+          const ftype = name.match(/\.(xlsx|xlsm)$/i) ? 'xlsx' : 'csv';
           const enc = detectEncoding(data);
           const fobj = { name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
           parseOneFile(fobj);
@@ -552,7 +552,7 @@ async function addFiles(fileList) {
       }
     } else {
       const data = await file.arrayBuffer();
-      const ftype = file.name.match(/\.xlsx$/i) ? 'xlsx' : 'csv';
+      const ftype = file.name.match(/\.(xlsx|xlsm)$/i) ? 'xlsx' : 'csv';
       const enc = detectEncoding(data);
       const fobj = { name: file.name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
       parseOneFile(fobj);
@@ -874,9 +874,13 @@ async function processFile() {
     if (fq.type === 'xlsx') {
       const wb = XLSX.utils.book_new();
       for (const rs of resultSheets) { const data = [...(rs.metaRows||[]), rs.headers, ...rs.rows]; const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, rs.name); }
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      outName = fq.name.replace(/\.xlsx$/i, suffix + '.xlsx');
+      const isXlsm = /\.xlsm$/i.test(fq.name);
+      if (isXlsm) log('  Hinweis: .xlsm — Makros und Formatierung gehen in der Browser-Version verloren (Daten werden korrekt verschluesselt).', 'warn');
+      const wbout = XLSX.write(wb, { bookType: isXlsm ? 'xlsm' : 'xlsx', type: 'array' });
+      const mime = isXlsm ? 'application/vnd.ms-excel.sheet.macroEnabled.12' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      blob = new Blob([wbout], { type: mime });
+      const outExt = isXlsm ? '.xlsm' : '.xlsx';
+      outName = fq.name.replace(/\.(xlsx|xlsm)$/i, suffix + outExt);
     } else {
       const sep = fq.detectedSep || ',';
       const rs = resultSheets[0];
