@@ -256,7 +256,7 @@ td.changed { background: var(--orange-bg); }
               <tr><td>Telefon</td><td>Telefon, Telefonnummer, Tel, Phone, Handy, Mobilnummer, Mobile</td></tr>
               <tr><td>Pruefer</td><td>Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in</td></tr>
               <tr><td>Anzeigename</td><td>Anzeigename, Display Name, Full Name, Student Name</td></tr>
-              <tr><td>Name</td><td>NAME — auto-composite aus Familienname + Vorname</td></tr>
+              <tr><td>Name</td><td>Composite aus Familienname + Vorname — sonst wird der ganze Wert verschluesselt</td></tr>
               <tr><td colspan="2" style="padding-top:.5rem;font-weight:600;">Valuatic</td></tr>
               <tr><td>Examiner</td><td>examiner_id, examiner_last_name, examiner_first_name</td></tr>
               <tr><td>Candidate</td><td>candidate_id, candidate_last_name, candidate_first_name</td></tr>
@@ -834,6 +834,10 @@ async function processFile() {
         const nv = (sheet.rows[0][nameColIdx]||'').trim(), fv = (sheet.rows[0][famIdx]||'').trim(), vv = (sheet.rows[0][vorIdx]||'').trim();
         if (nv === `${fv} ${vv}`.trim()) { nameIsComposite = true; nameOrder = 'fam_vor'; }
         else if (nv === `${vv} ${fv}`.trim()) { nameIsComposite = true; nameOrder = 'vor_fam'; }
+      }
+      // NAME-Spalte ohne Composite: als regulaere Spalte ganz verschluesseln
+      if (nameColIdx >= 0 && !nameIsComposite && !Object.values(colIndices).includes(nameColIdx)) {
+        colIndices['_name'] = nameColIdx;
       }
       const customInSheet = Object.keys(idCols).filter(k => k.startsWith('_custom_')).length;
       const colInfo = Object.values(idCols).join(', ') + (nameIsComposite && nameColName ? ' + '+nameColName : '');
