@@ -150,3 +150,63 @@ def test_extra_cols_no_duplicates(tmp_path):
     dst = tmp_path / "data_pseudo.csv"
     process_file(str(src), str(dst), "secret", "encrypt", ",", extra_cols=["Vorname"])
     assert dst.exists()
+
+
+def test_name_column_standalone_encrypted(tmp_path):
+    """A 'Name' column without separate Vorname/Familienname is encrypted whole."""
+    src = tmp_path / "data.csv"
+    src.write_text("Name,Vorname\nMustermann,Max\n", encoding="utf-8")
+    dst = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(dst), "secret", "encrypt", ",")
+    content = dst.read_text(encoding="utf-8")
+    assert "Mustermann" not in content      # Name encrypted
+    assert "Max" not in content             # Vorname encrypted
+    assert "Name" in content and "Vorname" in content  # headers intact
+
+
+def test_name_column_standalone_roundtrip(tmp_path):
+    """Standalone 'Name' column round-trips exactly."""
+    src = tmp_path / "data.csv"
+    src.write_text("Name,Vorname\nMustermann,Max\nTesterin,Eva\n", encoding="utf-8")
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret123", "encrypt", ",")
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret123", "decrypt", ",")
+    restored = dec.read_text(encoding="utf-8")
+    assert "Mustermann" in restored and "Max" in restored
+    assert "Testerin" in restored and "Eva" in restored
+
+
+def test_name_not_composite_fallback_encrypted(tmp_path):
+    """Name present alongside Vorname+Familienname but composite check fails
+    (title) -> Name is still encrypted as a whole value, round-trips exactly."""
+    src = tmp_path / "data.csv"
+    src.write_text(
+        "Vorname,Familienname,Name\nMax,Mustermann,Dr. Max Mustermann\n",
+        encoding="utf-8",
+    )
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    content = enc.read_text(encoding="utf-8")
+    assert "Dr. Max Mustermann" not in content
+    assert "Mustermann" not in content and "Max" not in content
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    assert "Dr. Max Mustermann" in dec.read_text(encoding="utf-8")
+
+
+def test_name_composite_still_recomposed(tmp_path):
+    """Regression: a real composite Name is recomposed from encrypted parts
+    (value contains a space), not encrypted as one token."""
+    src = tmp_path / "data.csv"
+    src.write_text(
+        "Vorname,Familienname,Name\nMax,Mustermann,Mustermann Max\n",
+        encoding="utf-8",
+    )
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    name_field = enc.read_text(encoding="utf-8").splitlines()[1].split(",")[2]
+    assert " " in name_field  # "<encFam> <encVor>", proves recomposition path
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    assert "Mustermann Max" in dec.read_text(encoding="utf-8")

@@ -292,6 +292,13 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
             name_is_composite = True
             name_order = "vor_fam"
 
+    # NAME-Spalte, die KEIN Composite ist (alleinige Namensspalte ODER
+    # Composite-Erkennung gescheitert): als regulaere Identitaetsspalte den
+    # ganzen Zellwert verschluesseln (deterministisch -> gleicher Token wie
+    # eine Nachname-Spalte, voll reversibel).
+    if name_col and not name_is_composite and name_col not in id_cols.values():
+        id_cols["_name"] = name_col
+
     # Ergebnis in StringIO schreiben, dann mit Original-Encoding ausgeben
     str_out = io.StringIO()
 
