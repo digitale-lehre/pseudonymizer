@@ -270,7 +270,7 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
                     break
 
     name_col = find_name_col(fieldnames)
-    if not id_cols and not name_col:
+    if not id_cols:
         print(f"FEHLER: Keine Identitaetsspalten gefunden.", file=sys.stderr)
         print(f"Vorhandene Spalten: {fieldnames}", file=sys.stderr)
         sys.exit(1)
@@ -291,13 +291,6 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
         elif name_val == f"{vor_val} {fam_val}".strip():
             name_is_composite = True
             name_order = "vor_fam"
-
-    # NAME-Spalte, die KEIN Composite ist (alleinige Namensspalte ODER
-    # Composite-Erkennung gescheitert): als regulaere Identitaetsspalte den
-    # ganzen Zellwert verschluesseln (deterministisch -> gleicher Token wie
-    # eine Nachname-Spalte, voll reversibel).
-    if name_col and not name_is_composite and name_col not in id_cols.values():
-        id_cols["_name"] = name_col
 
     # Ergebnis in StringIO schreiben, dann mit Original-Encoding ausgeben
     str_out = io.StringIO()
@@ -460,7 +453,9 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
                         existing_vals.add(h)
                         break
 
-        if not id_cols:
+        name_col_name = find_name_col(headers)
+
+        if not id_cols and not name_col_name:
             # Warnung ausgeben, aber nicht abbrechen
             sheets_skipped.append(f"{ws.title} (keine Identitaetsspalten erkannt: {[h for h in headers if h]})")
             continue
@@ -469,8 +464,6 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
         if ws.max_row < data_start_row:
             sheets_skipped.append(f"{ws.title} (nur Header, keine Daten)")
             continue
-
-        name_col_name = find_name_col(headers)
 
         # Spaltenindizes ermitteln (1-basiert fuer openpyxl)
         col_indices = {}  # canon_key -> col_index (1-basiert)
@@ -496,6 +489,12 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
             elif name_val == f"{vor_val} {fam_val}".strip():
                 name_is_composite = True
                 name_order = "vor_fam"
+
+        # NAME-Spalte ohne Composite: als regulaere Spalte ganz verschluesseln
+        if (name_col_idx and not name_is_composite
+                and name_col_idx not in col_indices.values()):
+            id_cols["_name"] = name_col_name
+            col_indices["_name"] = name_col_idx
 
         sheet_count = 0
         for row_idx in range(data_start_row, ws.max_row + 1):
