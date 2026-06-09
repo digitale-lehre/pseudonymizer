@@ -533,6 +533,9 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
             print(f"    (Header in Zeile {header_row_num}, {header_row_num - 1} Metadaten-Zeile(n) uebersprungen)")
 
     wb.save(output_path)
+    # In-Memory-VBA-Archiv schliessen (verhindert ResourceWarning beim GC)
+    if is_xlsm and wb.vba_archive is not None:
+        wb.vba_archive.close()
 
     action = "Pseudonymisierung" if mode == "encrypt" else "De-Pseudonymisierung"
     print(f"{action} abgeschlossen.")
@@ -558,7 +561,7 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
 # ======================== BATCH HELPERS ========================
 
 def collect_input_files(paths: list) -> list:
-    """Sammelt Eingabedateien. ZIP-Archive werden entpackt (nur CSV/XLSX).
+    """Sammelt Eingabedateien. ZIP-Archive werden entpackt (nur CSV/TSV/XLSX/XLSM).
     Gibt Liste von Path-Objekten zurueck (ggf. in tempdir extrahiert)."""
     import zipfile
     import tempfile
@@ -620,7 +623,7 @@ def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
 # ======================== DISPATCH ========================
 
 def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ",", extra_cols: list = None):
-    """Verarbeitet eine einzelne CSV/XLSX-Datei (Dispatch nach Dateityp)."""
+    """Verarbeitet eine einzelne CSV/XLSX/XLSM-Datei (Dispatch nach Dateityp)."""
     ext = Path(input_path).suffix.lower()
     if ext in (".xlsx", ".xlsm"):
         process_xlsx(input_path, output_path, secret, mode, extra_cols=extra_cols)
@@ -634,7 +637,7 @@ def process_file(input_path: str, output_path: str, secret: str, mode: str, sep:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="CSV/XLSX pseudonymisieren/de-pseudonymisieren — nur mit Secret, ohne Key-Datei"
+        description="CSV/XLSX/XLSM pseudonymisieren/de-pseudonymisieren — nur mit Secret, ohne Key-Datei"
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("mode", choices=["encrypt", "decrypt"],
