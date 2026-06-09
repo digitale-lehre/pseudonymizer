@@ -258,7 +258,11 @@ Die `NAME`-Spalte wird gesondert behandelt:
 
 **Erkennung als Zusammensetzung:** Falls eine `NAME`-Spalte existiert und deren Inhalt in der ersten Datenzeile der Kombination aus `FAMILIENNAME VORNAME` (oder `VORNAME FAMILIENNAME`) entspricht, wird sie als zusammengesetzt erkannt.
 
-**Verhalten:** Die `NAME`-Spalte wird nicht einzeln verschluesselt, sondern automatisch aus den verschluesselten Einzelwerten von Familienname und Vorname zusammengesetzt. Format: `<verschluesselter_Familienname> <verschluesselter_Vorname>`.
+**Verhalten (Composite):** Die `NAME`-Spalte wird nicht einzeln verschluesselt, sondern automatisch aus den verschluesselten Einzelwerten von Familienname und Vorname zusammengesetzt. Format: `<verschluesselter_Familienname> <verschluesselter_Vorname>`.
+
+**Verhalten (kein Composite):** Falls die Composite-Erkennung fehlschlaegt — weil keine separaten Vorname-/Familienname-Spalten vorhanden sind, oder weil der Inhalt der ersten Datenzeile nicht der erwarteten Kombination entspricht — wird der gesamte Wert der `NAME`-Spalte als einzelnes verschluesseltes Token behandelt.
+
+**Alleinige Spalte:** Eine Datei oder ein Sheet, deren einzige erkannte Identitaetsspalte `NAME` ist (keine separaten Vorname-/Familienname-Spalten), wird dennoch vollstaendig verarbeitet.
 
 
 ## Nicht erkannte Spalten

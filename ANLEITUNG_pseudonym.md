@@ -2,7 +2,7 @@
 
 ## Was macht das Tool?
 
-Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV-, TSV- und XLSX-Dateien. Personenbezogene Spalten (Familienname, Vorname, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) werden durch verschluesselte Werte ersetzt, die nur mit dem richtigen Secret zurueckgefuehrt werden koennen.
+Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten in CSV-, TSV-, XLSX- und XLSM-Dateien. Personenbezogene Spalten (Familienname, Vorname, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) werden durch verschluesselte Werte ersetzt, die nur mit dem richtigen Secret zurueckgefuehrt werden koennen.
 
 **Verfahren:** AES-256-CBC (symmetrische Verschluesselung, deterministisch mit PBKDF2-Schluesselableitung). Es wird keine separate Key-Datei benoetigt — derselbe Secret verschluesselt und entschluesselt.
 
@@ -13,7 +13,7 @@ Der pseudonymizer pseudonymisiert und de-pseudonymisiert personenbezogene Daten 
 
 Kein Install noetig. Einfach `pseudonym_gui.html` im Browser oeffnen (Doppelklick).
 
-1. **Datei waehlen:** CSV, TSV oder XLSX per Drag & Drop oder Dateiauswahl laden (auch mehrere oder ZIP)
+1. **Datei waehlen:** CSV, TSV, XLSX oder XLSM per Drag & Drop oder Dateiauswahl laden (auch mehrere oder ZIP)
 2. **Secret eingeben:** Beliebiges Passwort (muss zum Entschluesseln identisch sein)
 3. **Modus waehlen:** "Verschluesseln" oder "Entschluesseln"
 4. **Starten:** Ergebnis wird zum Download angeboten
@@ -68,6 +68,14 @@ python pseudonym.py decrypt eingabe_pseudo.xlsx --secret "MeinGeheimesPasswort"
 
 Erzeugt `eingabe_pseudo_restored.xlsx`.
 
+### XLSM pseudonymisieren (Macro-aktivierte Arbeitsmappen)
+
+```bash
+python pseudonym.py encrypt eingabe.xlsm --secret "MeinGeheimesPasswort"
+```
+
+Erzeugt `eingabe_pseudo.xlsm`. Die CLI behaelt Makros und Formatierung (`keep_vba=True`). Die Browser-GUI verarbeitet `.xlsm`-Dateien ebenfalls, verwirft dabei jedoch Makros und Formatierung.
+
 ### Eigenen Ausgabepfad angeben
 
 ```bash
@@ -88,7 +96,7 @@ Beide Varianten unterstuetzen die Verarbeitung mehrerer Dateien in einem Durchga
 ### Browser-GUI
 
 - **Mehrfachauswahl:** Im Dateiauswahl-Dialog mit Strg/Cmd mehrere Dateien auswaehlen, oder mehrere Dateien per Drag & Drop laden
-- **ZIP-Upload:** Eine ZIP-Datei hochladen — enthaltene CSV/XLSX werden automatisch extrahiert
+- **ZIP-Upload:** Eine ZIP-Datei hochladen — enthaltene CSV/XLSX/XLSM werden automatisch extrahiert
 - **Ergebnis:** Bei mehreren Dateien wird ein ZIP-Archiv mit allen Ergebnissen zum Download angeboten
 - **Vorschau:** Ueber Tabs (bis 8 Dateien) oder Dropdown (mehr als 8 Dateien) koennen einzelne Ergebnisse angezeigt werden
 
@@ -100,7 +108,7 @@ Mehrere Dateien als Argumente uebergeben:
 python pseudonym.py encrypt datei1.csv datei2.xlsx --secret "MeinSecret"
 ```
 
-ZIP-Archiv als Eingabe (entpackt automatisch CSV/XLSX):
+ZIP-Archiv als Eingabe (entpackt automatisch CSV/XLSX/XLSM):
 
 ```bash
 python pseudonym.py encrypt archiv.zip --secret "MeinSecret"
@@ -158,7 +166,7 @@ Das Tool erkennt automatisch verschiedene Schreibweisen der Identitaetsspalten (
 | SV-Nummer | `Sozialversicherungsnummer`, `SVNr`, `SVNR`, `SV-Nr`, `SV-Nr.`, `SV-Nummer`, `Versicherungsnummer`, `SSN` |
 | Geburtsdatum | `Geburtsdatum`, `Geburtstag`, `Geb.Datum`, `Geb.-Datum`, `Birthday`, `Date of Birth`, `DOB`, `Birth Date` |
 | Telefon | `Telefon`, `Telefonnummer`, `Tel`, `Tel.`, `Phone`, `Phone Number`, `Handy`, `Handynummer`, `Mobilnummer`, `Mobile`, `Cell Phone` |
-| Name (optional) | `NAME` — wird automatisch aus Familienname + Vorname zusammengesetzt, falls erkannt |
+| Name (optional) | `NAME` — Composite aus Familienname + Vorname; andernfalls wird der ganze Wert als ein Token verschluesselt |
 | Examiner ID (Valuatic) | `examiner_id`, `Examiner_ID`, `EXAMINER_ID` |
 | Examiner Nachname (Valuatic) | `examiner_last_name`, `Examiner_Last_Name`, `EXAMINER_LAST_NAME` |
 | Examiner Vorname (Valuatic) | `examiner_first_name`, `Examiner_First_Name`, `EXAMINER_FIRST_NAME` |
@@ -179,6 +187,8 @@ Vollstaendige Spalten-Referenz: [docs/column-reference.md](docs/column-reference
 
 Falls eine Spalte `NAME` existiert und deren Inhalt der Kombination aus `FAMILIENNAME VORNAME` entspricht (oder umgekehrt), wird diese automatisch aus den verschluesselten Einzelwerten zusammengesetzt. So bleibt die Konsistenz erhalten.
 
+Falls die Composite-Erkennung fehlschlaegt (z.B. weil keine separaten Vorname-/Familienname-Spalten vorhanden sind oder der Inhalt nicht uebereinstimmt), wird der gesamte Wert der `NAME`-Spalte als einzelnes Token verschluesselt. Eine Datei, deren einzige erkannte Identitaetsspalte `NAME` ist, wird dennoch verarbeitet.
+
 
 ## Bekannte XLSX-Probleme
 
@@ -195,7 +205,7 @@ MLW-Exporte enthalten Metadaten-Zeilen vor der eigentlichen Spalten-Kopfzeile (z
 - **Secret sicher aufbewahren:** Ohne den exakten Secret koennen die Daten nicht zurueckgefuehrt werden. Es gibt keine Wiederherstellungsmoeglichkeit.
 - **Deterministisch:** Gleicher Secret + gleiche Daten = gleiches Pseudonym. Das ermoeglicht die Zuordnung ueber mehrere Dateien hinweg, solange derselbe Secret verwendet wird.
 - **CSV-Formaterhaltung:** BOM (Byte Order Mark), Quoting-Stil und Zeilenumbrueche der Originaldatei werden beibehalten. Ein Encrypt-Decrypt-Roundtrip liefert eine byte-identische Datei.
-- **XLSX-Formaterhaltung:** Zellformatierung, bedingte Formatierung und Styles bleiben erhalten. Alle Sheets werden verarbeitet (Sheets ohne Identitaetsspalten werden uebersprungen).
+- **XLSX-Formaterhaltung:** Zellformatierung, bedingte Formatierung und Styles bleiben erhalten. Alle Sheets werden verarbeitet (Sheets ohne Identitaetsspalten werden uebersprungen). Bei `.xlsm`-Dateien bleibt der Makro-Code (`keep_vba`) in der CLI erhalten; die Browser-GUI verwirft ihn.
 - **Kompatibilitaet:** Python CLI und Browser-GUI erzeugen identische Pseudonyme fuer gleiche Eingaben mit gleichem Secret.
 
 
@@ -228,7 +238,7 @@ python pseudonym.py [-h] [--version] {encrypt,decrypt} input [input ...] --secre
 
 Argumente:
   {encrypt,decrypt}   encrypt = pseudonymisieren, decrypt = zurueckfuehren
-  input               Pfad(e) zu CSV-, XLSX- oder ZIP-Dateien (mehrere moeglich)
+  input               Pfad(e) zu CSV-, XLSX-, XLSM- oder ZIP-Dateien (mehrere moeglich)
   --secret SECRET     Geheimer Schluessel (beliebiger String)
   --output, -o        Ausgabepfad (nur bei einzelner Datei)
   --sep, -s           CSV-Trennzeichen (Standard: Komma; wird bei XLSX ignoriert)
