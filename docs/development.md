@@ -115,7 +115,7 @@ Siehe [Kryptographie-Spezifikation](cryptography.md) fuer technische Details.
 
 ## Sicherheitsregeln
 
-- **Nie** CSV- oder XLSX-Dateien committen (enthalten PII). `.gitignore` blockiert diese.
+- **Nie** CSV-, XLSX- oder XLSM-Dateien committen (enthalten PII). `.gitignore` blockiert diese.
 - **Nie** Secrets speichern oder loggen
 - **Nie** Krypto-Parameter abschwaeen (Iterationen, Modus, IV-Ableitung)
 - Die deterministische IV ist ein bewusster Trade-off fuer konsistente Pseudonyme

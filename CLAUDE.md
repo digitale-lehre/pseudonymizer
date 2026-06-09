@@ -136,7 +136,7 @@ The HTML GUI must produce the same token for the same input and secret.
 
 ## Security Rules
 
-- **Never commit CSV or XLSX/XLSM data files** — they contain student PII. The `.gitignore` blocks `*.csv` and `*.xlsx`.
+- **Never commit CSV or XLSX/XLSM data files** — they contain student PII. The `.gitignore` blocks `*.csv`, `*.xlsx`, and `*.xlsm`.
 - **Never store or log secrets** — the secret exists only in memory during processing
 - **Never weaken crypto parameters** — no reducing PBKDF2 iterations, no switching to ECB mode, no removing IV
 - The deterministic IV is an intentional trade-off: it enables consistent pseudonyms across files but means identical values produce identical ciphertext. This is acceptable for this use case.

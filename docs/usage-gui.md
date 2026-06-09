@@ -11,7 +11,7 @@
 
 ### 1. Datei laden
 
-Datei per **Drag & Drop** auf die Dropzone ziehen oder ueber den Dateiauswahl-Dialog laden. Unterstuetzte Formate: CSV, TSV, TXT und XLSX.
+Datei per **Drag & Drop** auf die Dropzone ziehen oder ueber den Dateiauswahl-Dialog laden. Unterstuetzte Formate: CSV, TSV, TXT, XLSX und XLSM.
 
 Bei XLSX-Dateien mit mehreren Sheets werden alle Sheets angezeigt und verarbeitet.
 
@@ -51,7 +51,7 @@ Die GUI unterstuetzt die Verarbeitung mehrerer Dateien in einem Durchgang.
 
 - **Mehrfachauswahl:** Im Dateiauswahl-Dialog mit Strg (Windows/Linux) oder Cmd (Mac) mehrere Dateien gleichzeitig auswaehlen
 - **Drag & Drop:** Mehrere Dateien gleichzeitig auf die Dropzone ziehen
-- **ZIP-Upload:** Eine ZIP-Datei hochladen — enthaltene CSV- und XLSX-Dateien werden automatisch extrahiert
+- **ZIP-Upload:** Eine ZIP-Datei hochladen — enthaltene CSV-, XLSX- und XLSM-Dateien werden automatisch extrahiert (bei XLSM-Dateien werden Makros und Formatierung verworfen; die Daten werden korrekt verschluesselt)
 
 ### Dateiliste
 
