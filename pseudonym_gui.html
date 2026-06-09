@@ -817,7 +817,8 @@ async function processFile() {
           existingVals.add(sheet.headers[idx]);
         }
       }
-      if (Object.keys(idCols).length === 0) {
+      const nameColName = findNameCol(sheet.headers);
+      if (Object.keys(idCols).length === 0 && !nameColName) {
         log(`  Sheet "${sheet.name}": keine Identitaetsspalten [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
         sheetsSkipped++;
         resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
@@ -825,7 +826,6 @@ async function processFile() {
       }
       const colIndices = {};
       for (const [canon, actual] of Object.entries(idCols)) colIndices[canon] = sheet.headers.indexOf(actual);
-      const nameColName = findNameCol(sheet.headers);
       let nameColIdx = nameColName ? sheet.headers.indexOf(nameColName) : -1;
       let nameIsComposite = false, nameOrder = 'fam_vor';
       const famIdx = colIndices.familienname ?? -1;
@@ -840,7 +840,9 @@ async function processFile() {
         colIndices['_name'] = nameColIdx;
       }
       const customInSheet = Object.keys(idCols).filter(k => k.startsWith('_custom_')).length;
-      const colInfo = Object.values(idCols).join(', ') + (nameIsComposite && nameColName ? ' + '+nameColName : '');
+      const encryptedColNames = Object.values(idCols).slice();
+      if (colIndices['_name'] !== undefined && nameColName) encryptedColNames.push(nameColName);
+      const colInfo = encryptedColNames.join(', ') + (nameIsComposite && nameColName ? ' + '+nameColName : '');
       log(`  Sheet "${sheet.name}": ${colInfo}${customInSheet ? ` (${customInSheet} benutzerdefiniert)` : ''}`);
       const newRows = [];
       let sheetCells = 0;
