@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tool for pseudonymizing and de-pseudonymizing personal data (names, student IDs, email addresses, examiner names, social security numbers, dates of birth, phone numbers) in CSV and XLSX files. Used at MedUni Wien for handling student data in tertial assignment workflows.
+Tool for pseudonymizing and de-pseudonymizing personal data (names, student IDs, email addresses, examiner names, social security numbers, dates of birth, phone numbers) in CSV, XLSX, and XLSM files. Used at MedUni Wien for handling student data in tertial assignment workflows.
 
 Two implementations exist — a Python CLI (`pseudonym.py`) and a standalone browser GUI (`pseudonym_gui.html`). Both use identical cryptography and must always produce the same output for the same input and secret.
 
@@ -32,7 +32,7 @@ docs/                   Wiki-style documentation (column-reference, cryptography
 |--------------|---------|
 | familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Last name, Lastname, Surname, Family Name, Family_Name, Familienname oder Nachname, Familien- oder Nachname |
 | vorname | VORNAME, Vorname, FirstName, FIRST_NAME_OF_STUDENT, First Name, First name, Given Name, GivenName, Given name, Rufname |
-| matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, Matrikelnr, Matrikelnr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer, ID number, ID Number, ID-Nummer |
+| matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer, ID number, ID Number, ID-Nummer |
 | email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL, E-Mail des Teilnehmers, Attendee Email, E-Mail-Adresse, E-Mail Adresse, Emailadresse, Mailadresse, Email address, Email Address |
 | pruefer | Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in |
 | anzeigename | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |
@@ -50,7 +50,7 @@ Valuatic exam software columns use separate canonical keys (e.g., `examiner_nach
 
 **Suffix stripping:** Before matching, suffixes like `.x`, `.y`, `.1`, `.2` (from R merge operations) are automatically stripped from column headers. E.g., `Vorname.x` matches as `Vorname`.
 
-`NAME` column: auto-detected as composite of familienname + vorname (checked against first data row). Preserves original order ("Vorname Nachname" vs "Nachname Vorname"). Note: `Anzeigename`/`Display Name` is NOT a composite — it is encrypted independently (Webex display names may differ from Vorname + Nachname).
+`NAME` column: auto-detected as composite of familienname + vorname (checked against first data row). Preserves original order ("Vorname Nachname" vs "Nachname Vorname"). Note: `Anzeigename`/`Display Name` is NOT a composite — it is encrypted independently (Webex display names may differ from Vorname + Nachname). If a `Name` column is not a composite (no separate Vorname+Familienname, or the composite check fails), the whole value is encrypted as a single token; a file whose only recognized column is `Name` is still processed.
 
 When adding new aliases, update `COLUMN_ALIASES` in `pseudonym.py` AND the `COLUMN_ALIASES` object in `pseudonym_gui.html`.
 
@@ -124,7 +124,7 @@ The HTML GUI must produce the same token for the same input and secret.
 - Comments and CLI output in German (ASCII-safe: ae/oe/ue instead of umlauts)
 - Functions: `snake_case`
 - CSV processing preserves original encoding, BOM, quoting style (QUOTE_ALL vs QUOTE_MINIMAL), and line endings (CRLF vs LF) for byte-identical roundtrips
-- XLSX processing: uses openpyxl, preserves cell formatting. Includes `_fix_xlsx_drawings()` for repairing broken drawing references before loading
+- XLSX/XLSM processing: uses openpyxl, preserves cell formatting. Includes `_fix_xlsx_drawings()` for repairing broken drawing references before loading. For `.xlsm` files, `process_xlsx` loads with `keep_vba=True` to preserve macros (CLI only; the browser GUI drops macros and formatting for `.xlsm`).
 
 ### HTML/JS (pseudonym_gui.html)
 - Single self-contained HTML file — all CSS and JS inline
@@ -136,7 +136,7 @@ The HTML GUI must produce the same token for the same input and secret.
 
 ## Security Rules
 
-- **Never commit CSV or XLSX data files** — they contain student PII. The `.gitignore` blocks `*.csv` and `*.xlsx`.
+- **Never commit CSV or XLSX/XLSM data files** — they contain student PII. The `.gitignore` blocks `*.csv`, `*.xlsx`, and `*.xlsm`.
 - **Never store or log secrets** — the secret exists only in memory during processing
 - **Never weaken crypto parameters** — no reducing PBKDF2 iterations, no switching to ECB mode, no removing IV
 - The deterministic IV is an intentional trade-off: it enables consistent pseudonyms across files but means identical values produce identical ciphertext. This is acceptable for this use case.

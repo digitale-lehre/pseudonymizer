@@ -1,6 +1,6 @@
 # pseudonymizer
 
-AES-256-CBC Pseudonymisierung fuer CSV-, TSV- und XLSX-Dateien.
+AES-256-CBC Pseudonymisierung fuer CSV-, TSV-, XLSX- und XLSM-Dateien.
 
 Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) durch verschluesselte Pseudonyme. Gleicher Secret = gleiche Pseudonyme, umkehrbar mit demselben Secret.
 
@@ -13,11 +13,13 @@ Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Numm
 | Datei | `pseudonym_gui.html` | `pseudonym.py` |
 | Benoetigt | Nur einen Browser | Python 3.8+ |
 | Start | Doppelklick auf HTML | `python pseudonym.py ...` |
-| Formate | CSV, TSV, XLSX | CSV, TSV, TXT, XLSX |
+| Formate | CSV, TSV, XLSX, XLSM | CSV, TSV, TXT, XLSX, XLSM |
 | Batch-Modus | Multi-Select, Drag & Drop, ZIP | Mehrere Dateien, ZIP, `--output-dir`, `--zip` |
 | Eigene Spalten | Spaltenueberschriften anklicken | `--extra-cols "Spalte1,Spalte2"` |
 
 Beide Varianten sind **kryptografisch kompatibel** — eine mit Python verschluesselte Datei kann in der GUI entschluesselt werden und umgekehrt.
+
+> **XLSM-Hinweis:** Die Python CLI verarbeitet `.xlsm`-Dateien (Macro-aktivierte Excel-Arbeitsmappen) und behaelt Makros und Formatierung (`keep_vba=True`) bei. Die Browser-GUI verarbeitet `.xlsm`-Dateien ebenfalls, verwirft dabei jedoch Makros und Formatierung (identisches Verhalten wie bei `.xlsx`).
 
 ## Schnellstart
 
@@ -90,14 +92,14 @@ Das Tool erkennt automatisch verschiedene Schreibweisen (case-insensitive):
 |---|---|
 | **Familienname** | FAMILIENNAME, Zuname, Nachname, Surname, Family Name, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname, Familien- oder Nachname |
 | **Vorname** | VORNAME, FirstName, FIRST_NAME_OF_STUDENT, First Name, Given Name, GivenName, Rufname |
-| **Matrikelnummer** | MATRIKELNUMMER, Matnr, Matrikelnr, Matrikelnr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer |
+| **Matrikelnummer** | MATRIKELNUMMER, Matnr, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer |
 | **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, E-Mail Adresse, Emailadresse, Mailadresse, Attendee Email |
 | **Pruefer** | Examiner, Pruefer, Pruefer, Pruefer/in, PrueferIn, Pruefer:in |
 | **Anzeigename** | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |
 | **SV-Nummer** | Sozialversicherungsnummer, SVNr, SVNR, SV-Nr, SV-Nr., SV-Nummer, Versicherungsnummer, SSN |
 | **Geburtsdatum** | Geburtsdatum, Geburtstag, Geb.Datum, Geb.-Datum, Birthday, Date of Birth, DOB, Birth Date |
 | **Telefon** | Telefon, Telefonnummer, Tel, Tel., Phone, Phone Number, Handy, Handynummer, Mobilnummer, Mobile, Cell Phone |
-| **Name** *(optional)* | NAME — automatisch aus Familienname + Vorname zusammengesetzt |
+| **Name** *(optional)* | NAME — Composite aus Familienname + Vorname; andernfalls wird der ganze Wert als ein Token verschluesselt |
 | **Examiner ID** *(Valuatic)* | examiner_id, Examiner_ID, EXAMINER_ID |
 | **Examiner Nachname** *(Valuatic)* | examiner_last_name, Examiner_Last_Name, EXAMINER_LAST_NAME |
 | **Examiner Vorname** *(Valuatic)* | examiner_first_name, Examiner_First_Name, EXAMINER_FIRST_NAME |

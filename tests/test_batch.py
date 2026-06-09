@@ -1,9 +1,35 @@
 import sys
 import zipfile
+import io
 from pathlib import Path
+
+from openpyxl import Workbook, load_workbook
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from pseudonym import process_file, make_output_path, collect_input_files, create_output_zip
+
+
+def _build_xlsx_bytes(rows):
+    """rows: list of lists (first row = header). Returns .xlsx bytes."""
+    wb = Workbook()
+    ws = wb.active
+    for r in rows:
+        ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _make_xlsm(path, rows):
+    """Create an .xlsm: a normal workbook + an injected dummy xl/vbaProject.bin.
+    openpyxl 3.1.5 ignores the unreferenced part on load and re-merges it on
+    save when keep_vba=True."""
+    xlsx_bytes = _build_xlsx_bytes(rows)
+    with zipfile.ZipFile(io.BytesIO(xlsx_bytes), "r") as src, \
+         zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as out:
+        for item in src.infolist():
+            out.writestr(item, src.read(item.filename))
+        out.writestr("xl/vbaProject.bin", b"DUMMY-VBA")
 
 
 def test_process_file_csv(tmp_path):
@@ -150,3 +176,201 @@ def test_extra_cols_no_duplicates(tmp_path):
     dst = tmp_path / "data_pseudo.csv"
     process_file(str(src), str(dst), "secret", "encrypt", ",", extra_cols=["Vorname"])
     assert dst.exists()
+
+
+def test_xlsx_name_column_standalone_encrypted(tmp_path):
+    """XLSX: standalone 'Name' column (no Familienname) is encrypted + round-trips."""
+    src = tmp_path / "data.xlsx"
+    src.write_bytes(_build_xlsx_bytes([["Name", "Vorname"], ["Mustermann", "Max"]]))
+    enc = tmp_path / "data_pseudo.xlsx"
+    process_file(str(src), str(enc), "secret", "encrypt")
+    ws = load_workbook(enc).active
+    assert ws.cell(row=2, column=1).value != "Mustermann"  # Name encrypted
+    assert ws.cell(row=2, column=2).value != "Max"          # Vorname encrypted
+    dec = tmp_path / "data_restored.xlsx"
+    process_file(str(enc), str(dec), "secret", "decrypt")
+    ws2 = load_workbook(dec).active
+    assert ws2.cell(row=2, column=1).value == "Mustermann"
+    assert ws2.cell(row=2, column=2).value == "Max"
+
+
+def test_xlsx_name_column_only_sheet(tmp_path):
+    """XLSX: a sheet whose only recognized column is 'Name' is still processed."""
+    src = tmp_path / "names.xlsx"
+    src.write_bytes(_build_xlsx_bytes([["Name"], ["Mustermann"], ["Testerin"]]))
+    enc = tmp_path / "names_pseudo.xlsx"
+    process_file(str(src), str(enc), "secret", "encrypt")
+    ws = load_workbook(enc).active
+    assert ws.cell(row=2, column=1).value != "Mustermann"  # encrypted
+    assert ws.cell(row=3, column=1).value != "Testerin"
+    dec = tmp_path / "names_restored.xlsx"
+    process_file(str(enc), str(dec), "secret", "decrypt")
+    ws2 = load_workbook(dec).active
+    assert ws2.cell(row=2, column=1).value == "Mustermann"  # restored
+    assert ws2.cell(row=3, column=1).value == "Testerin"
+
+
+def test_name_column_standalone_encrypted(tmp_path):
+    """A 'Name' column without separate Vorname/Familienname is encrypted whole."""
+    src = tmp_path / "data.csv"
+    src.write_text("Name,Vorname\nMustermann,Max\n", encoding="utf-8")
+    dst = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(dst), "secret", "encrypt", ",")
+    content = dst.read_text(encoding="utf-8")
+    assert "Mustermann" not in content
+    assert "Max" not in content
+    assert "Name" in content and "Vorname" in content
+
+
+def test_name_column_standalone_roundtrip(tmp_path):
+    """Standalone 'Name' column round-trips exactly."""
+    src = tmp_path / "data.csv"
+    src.write_text("Name,Vorname\nMustermann,Max\nTesterin,Eva\n", encoding="utf-8")
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret123", "encrypt", ",")
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret123", "decrypt", ",")
+    restored = dec.read_text(encoding="utf-8")
+    assert "Mustermann" in restored and "Max" in restored
+    assert "Testerin" in restored and "Eva" in restored
+
+
+def test_name_not_composite_fallback_encrypted(tmp_path):
+    """Name present alongside Vorname+Familienname but composite check fails
+    (title) -> Name is still encrypted as a whole value, round-trips exactly."""
+    src = tmp_path / "data.csv"
+    src.write_text(
+        "Vorname,Familienname,Name\nMax,Mustermann,Dr. Max Mustermann\n",
+        encoding="utf-8",
+    )
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    content = enc.read_text(encoding="utf-8")
+    assert "Dr. Max Mustermann" not in content
+    assert "Mustermann" not in content and "Max" not in content
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    assert "Dr. Max Mustermann" in dec.read_text(encoding="utf-8")
+
+
+def test_name_composite_still_recomposed(tmp_path):
+    """Regression: a real composite Name is recomposed from encrypted parts
+    (value contains a space), not encrypted as one token."""
+    src = tmp_path / "data.csv"
+    src.write_text(
+        "Vorname,Familienname,Name\nMax,Mustermann,Mustermann Max\n",
+        encoding="utf-8",
+    )
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    name_field = enc.read_text(encoding="utf-8").splitlines()[1].split(",")[2]
+    assert " " in name_field
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    assert "Mustermann Max" in dec.read_text(encoding="utf-8")
+
+
+def test_name_column_only_no_other_identity(tmp_path):
+    """A CSV whose only recognized column is 'Name' is still encrypted (not rejected)."""
+    src = tmp_path / "names.csv"
+    src.write_text("Name\nMustermann\nTesterin\n", encoding="utf-8")
+    enc = tmp_path / "names_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    content = enc.read_text(encoding="utf-8")
+    assert "Mustermann" not in content
+    assert "Testerin" not in content
+    assert "Name" in content
+    dec = tmp_path / "names_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    restored = dec.read_text(encoding="utf-8")
+    assert "Mustermann" in restored and "Testerin" in restored
+
+
+def test_xlsx_name_not_composite_fallback(tmp_path):
+    """XLSX: Name alongside Vorname+Familienname but composite check fails
+    (title) -> Name still encrypted as a whole single-token value, round-trips."""
+    src = tmp_path / "data.xlsx"
+    src.write_bytes(_build_xlsx_bytes(
+        [["Vorname", "Familienname", "Name"],
+         ["Max", "Mustermann", "Dr. Max Mustermann"]]))
+    enc = tmp_path / "data_pseudo.xlsx"
+    process_file(str(src), str(enc), "secret", "encrypt")
+    ws = load_workbook(enc).active
+    name_val = ws.cell(row=2, column=3).value
+    assert name_val != "Dr. Max Mustermann"   # Name encrypted
+    assert " " not in name_val                 # single token, NOT recomposed
+    dec = tmp_path / "data_restored.xlsx"
+    process_file(str(enc), str(dec), "secret", "decrypt")
+    ws2 = load_workbook(dec).active
+    assert ws2.cell(row=2, column=3).value == "Dr. Max Mustermann"
+
+
+def test_make_output_path_xlsm():
+    assert make_output_path(Path("/d/data.xlsm"), "encrypt") == "/d/data_pseudo.xlsm"
+
+
+def test_collect_input_files_xlsm_plain(tmp_path):
+    x = tmp_path / "macro.xlsm"
+    x.write_bytes(b"PKdummy")  # content irrelevant: collection checks suffix only
+    result = collect_input_files([str(x)])
+    assert len(result) == 1 and Path(result[0]).name == "macro.xlsm"
+
+
+def test_collect_input_files_xlsm_in_zip(tmp_path):
+    inner = tmp_path / "macro.xlsm"
+    inner.write_bytes(b"PKdummy")
+    zp = tmp_path / "bundle.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        zf.write(inner, "macro.xlsm")
+    result = collect_input_files([str(zp)])
+    assert len(result) == 1 and Path(result[0]).name == "macro.xlsm"
+
+
+def test_process_file_xlsm_roundtrip(tmp_path):
+    src = tmp_path / "macro.xlsm"
+    _make_xlsm(src, [["Vorname", "Familienname"], ["Max", "Mustermann"]])
+    enc = tmp_path / "macro_pseudo.xlsm"
+    process_file(str(src), str(enc), "secret123", "encrypt")
+    assert enc.exists()
+    ws = load_workbook(enc).active
+    assert ws.cell(row=2, column=1).value != "Max"  # encrypted
+    dec = tmp_path / "macro_restored.xlsm"
+    process_file(str(enc), str(dec), "secret123", "decrypt")
+    ws2 = load_workbook(dec).active
+    assert ws2.cell(row=2, column=1).value == "Max"
+    assert ws2.cell(row=2, column=2).value == "Mustermann"
+
+
+def test_process_file_xlsm_preserves_vba(tmp_path):
+    src = tmp_path / "macro.xlsm"
+    _make_xlsm(src, [["Vorname", "Familienname"], ["Max", "Mustermann"]])
+    with zipfile.ZipFile(src) as z:
+        assert "xl/vbaProject.bin" in z.namelist()
+    enc = tmp_path / "macro_pseudo.xlsm"
+    process_file(str(src), str(enc), "secret123", "encrypt")
+    with zipfile.ZipFile(enc) as z:
+        assert "xl/vbaProject.bin" in z.namelist()
+        assert z.read("xl/vbaProject.bin") == b"DUMMY-VBA"
+
+
+def test_matnr_dot_alias_variants_recognized():
+    """'Mat.Nr.'-Varianten werden als matnr erkannt (case-insensitive,
+    mit/ohne Schlusspunkt, Bindestrich- und Leerzeichen-Schreibweise)."""
+    from pseudonym import find_identity_cols
+    for header in ["Mat.nr.", "Mat.Nr.", "MAT.NR.", "Mat.Nr", "Mat-Nr.", "Mat-Nr", "Mat. Nr."]:
+        found = find_identity_cols([header])
+        assert found.get("matnr") == header, f"{header!r} nicht als matnr erkannt: {found}"
+
+
+def test_matnr_dot_alias_encrypted_roundtrip(tmp_path):
+    """CSV mit 'Mat.nr.'-Spalte wird verschluesselt und exakt wiederhergestellt."""
+    src = tmp_path / "data.csv"
+    src.write_text("Mat.nr.,Vorname\n01634795,Max\n", encoding="utf-8")
+    enc = tmp_path / "data_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    content = enc.read_text(encoding="utf-8")
+    assert "01634795" not in content
+    assert "Mat.nr." in content  # Header bleibt
+    dec = tmp_path / "data_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    assert "01634795" in dec.read_text(encoding="utf-8")

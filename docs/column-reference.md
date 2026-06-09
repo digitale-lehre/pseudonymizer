@@ -64,6 +64,9 @@ Nur erkannte Identitaetsspalten werden verschluesselt. Alle anderen Spalten blei
 | `matnr`, `MATNR` | Varianten |
 | `Matrikelnr` | Kurzform |
 | `Matrikelnr.` | Kurzform (mit Punkt) |
+| `Mat.Nr.`, `Mat.Nr` | Abkuerzung (mit/ohne Schlusspunkt, case-insensitive: auch `Mat.nr.`) |
+| `Mat-Nr.`, `Mat-Nr` | Abkuerzung (Bindestrich) |
+| `Mat. Nr.` | Abkuerzung (mit Leerzeichen) |
 | `MatrNr` | CamelCase-Kurzform |
 | `Matrikel` | Kurzform |
 | `matrikel`, `MATRIKEL` | Varianten |
@@ -258,7 +261,11 @@ Die `NAME`-Spalte wird gesondert behandelt:
 
 **Erkennung als Zusammensetzung:** Falls eine `NAME`-Spalte existiert und deren Inhalt in der ersten Datenzeile der Kombination aus `FAMILIENNAME VORNAME` (oder `VORNAME FAMILIENNAME`) entspricht, wird sie als zusammengesetzt erkannt.
 
-**Verhalten:** Die `NAME`-Spalte wird nicht einzeln verschluesselt, sondern automatisch aus den verschluesselten Einzelwerten von Familienname und Vorname zusammengesetzt. Format: `<verschluesselter_Familienname> <verschluesselter_Vorname>`.
+**Verhalten (Composite):** Die `NAME`-Spalte wird nicht einzeln verschluesselt, sondern automatisch aus den verschluesselten Einzelwerten von Familienname und Vorname zusammengesetzt. Format: `<verschluesselter_Familienname> <verschluesselter_Vorname>`.
+
+**Verhalten (kein Composite):** Falls die Composite-Erkennung fehlschlaegt — weil keine separaten Vorname-/Familienname-Spalten vorhanden sind, oder weil der Inhalt der ersten Datenzeile nicht der erwarteten Kombination entspricht — wird der gesamte Wert der `NAME`-Spalte als einzelnes verschluesseltes Token behandelt.
+
+**Alleinige Spalte:** Eine Datei oder ein Sheet, deren einzige erkannte Identitaetsspalte `NAME` ist (keine separaten Vorname-/Familienname-Spalten), wird dennoch vollstaendig verarbeitet.
 
 
 ## Nicht erkannte Spalten

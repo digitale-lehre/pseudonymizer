@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Pseudonymisierung & De-Pseudonymisierung mit nur einem Secret.
-Keine separate Key-Datei noetig. Unterstuetzt CSV und XLSX.
+Keine separate Key-Datei noetig. Unterstuetzt CSV, XLSX und XLSM.
 
 Verwendet AES-Verschluesselung (deterministisch): gleicher Secret + gleiche Daten
 = gleiches Pseudonym. Nur wer den Secret kennt, kann zurueckfuehren.
@@ -33,7 +33,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 # Spaltennamen-Mapping: verschiedene Schreibweisen -> kanonischer Schluessel
 # Jeder kanonische Schluessel hat eine Liste von moeglichen Spaltennamen
@@ -52,6 +52,7 @@ COLUMN_ALIASES = {
     "matnr":        ["MATRIKELNUMMER", "Matrikelnummer", "matrikelnummer", "Matnr", "matnr",
                      "MATNR", "MatrNr", "Matrikel", "matrikel", "MATRIKEL",
                      "Matrikelnr", "Matrikelnr.",
+                     "Mat.Nr.", "Mat.Nr", "Mat-Nr.", "Mat-Nr", "Mat. Nr.",
                      "StudentID", "Student_ID", "Student ID",
                      "REGISTRATION_NUMBER", "Registration_Number", "Registration Number",
                      "ID number", "ID Number", "ID-Nummer", "Kennnummer"],
@@ -270,7 +271,7 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
                     break
 
     name_col = find_name_col(fieldnames)
-    if not id_cols:
+    if not id_cols and not name_col:
         print(f"FEHLER: Keine Identitaetsspalten gefunden.", file=sys.stderr)
         print(f"Vorhandene Spalten: {fieldnames}", file=sys.stderr)
         sys.exit(1)
@@ -291,6 +292,13 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
         elif name_val == f"{vor_val} {fam_val}".strip():
             name_is_composite = True
             name_order = "vor_fam"
+
+    # NAME-Spalte, die KEIN Composite ist (alleinige Namensspalte ODER
+    # Composite-Erkennung gescheitert): als regulaere Identitaetsspalte den
+    # ganzen Zellwert verschluesseln (deterministisch -> gleicher Token wie
+    # eine Nachname-Spalte, voll reversibel).
+    if name_col and not name_is_composite and name_col not in id_cols.values():
+        id_cols["_name"] = name_col
 
     # Ergebnis in StringIO schreiben, dann mit Original-Encoding ausgeben
     str_out = io.StringIO()
@@ -383,7 +391,7 @@ def _fix_xlsx_drawings(input_path: str) -> str:
 
         # Reparatur: Drawing-Relationships aus Sheet-Rels entfernen
         print("  HINWEIS: Repariere fehlende Drawing-Referenzen in XLSX...")
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=Path(input_path).suffix)
         os.close(tmp_fd)
 
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
@@ -408,11 +416,12 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
 
     key = derive_key(secret)
     transform = encrypt_value if mode == "encrypt" else decrypt_value
+    is_xlsm = Path(input_path).suffix.lower() == ".xlsm"
 
     # Repariere fehlende Drawings falls noetig
     fixed_path = _fix_xlsx_drawings(input_path)
     try:
-        wb = load_workbook(fixed_path)
+        wb = load_workbook(fixed_path, keep_vba=is_xlsm)
     finally:
         if fixed_path != input_path:
             import os
@@ -453,7 +462,9 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
                         existing_vals.add(h)
                         break
 
-        if not id_cols:
+        name_col_name = find_name_col(headers)
+
+        if not id_cols and not name_col_name:
             # Warnung ausgeben, aber nicht abbrechen
             sheets_skipped.append(f"{ws.title} (keine Identitaetsspalten erkannt: {[h for h in headers if h]})")
             continue
@@ -462,8 +473,6 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
         if ws.max_row < data_start_row:
             sheets_skipped.append(f"{ws.title} (nur Header, keine Daten)")
             continue
-
-        name_col_name = find_name_col(headers)
 
         # Spaltenindizes ermitteln (1-basiert fuer openpyxl)
         col_indices = {}  # canon_key -> col_index (1-basiert)
@@ -489,6 +498,12 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
             elif name_val == f"{vor_val} {fam_val}".strip():
                 name_is_composite = True
                 name_order = "vor_fam"
+
+        # NAME-Spalte ohne Composite: als regulaere Spalte ganz verschluesseln
+        if (name_col_idx and not name_is_composite
+                and name_col_idx not in col_indices.values()):
+            id_cols["_name"] = name_col_name
+            col_indices["_name"] = name_col_idx
 
         sheet_count = 0
         for row_idx in range(data_start_row, ws.max_row + 1):
@@ -519,6 +534,9 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
             print(f"    (Header in Zeile {header_row_num}, {header_row_num - 1} Metadaten-Zeile(n) uebersprungen)")
 
     wb.save(output_path)
+    # In-Memory-VBA-Archiv schliessen (verhindert ResourceWarning beim GC)
+    if is_xlsm and wb.vba_archive is not None:
+        wb.vba_archive.close()
 
     action = "Pseudonymisierung" if mode == "encrypt" else "De-Pseudonymisierung"
     print(f"{action} abgeschlossen.")
@@ -544,13 +562,13 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
 # ======================== BATCH HELPERS ========================
 
 def collect_input_files(paths: list) -> list:
-    """Sammelt Eingabedateien. ZIP-Archive werden entpackt (nur CSV/XLSX).
+    """Sammelt Eingabedateien. ZIP-Archive werden entpackt (nur CSV/TSV/XLSX/XLSM).
     Gibt Liste von Path-Objekten zurueck (ggf. in tempdir extrahiert)."""
     import zipfile
     import tempfile
 
-    SUPPORTED = {".csv", ".tsv", ".txt", ".xlsx"}
-    ZIP_EXTRACT = {".csv", ".tsv", ".xlsx"}
+    SUPPORTED = {".csv", ".tsv", ".txt", ".xlsx", ".xlsm"}
+    ZIP_EXTRACT = {".csv", ".tsv", ".xlsx", ".xlsm"}
     collected = []
 
     for p in paths:
@@ -606,27 +624,27 @@ def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
 # ======================== DISPATCH ========================
 
 def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ",", extra_cols: list = None):
-    """Verarbeitet eine einzelne CSV/XLSX-Datei (Dispatch nach Dateityp)."""
+    """Verarbeitet eine einzelne CSV/XLSX/XLSM-Datei (Dispatch nach Dateityp)."""
     ext = Path(input_path).suffix.lower()
-    if ext == ".xlsx":
+    if ext in (".xlsx", ".xlsm"):
         process_xlsx(input_path, output_path, secret, mode, extra_cols=extra_cols)
     elif ext in (".csv", ".tsv", ".txt"):
         process_csv(input_path, output_path, secret, mode, sep, extra_cols=extra_cols)
     else:
-        raise ValueError(f"Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .tsv, .txt, .xlsx")
+        raise ValueError(f"Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .tsv, .txt, .xlsx, .xlsm")
 
 
 # ======================== MAIN ========================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="CSV/XLSX pseudonymisieren/de-pseudonymisieren — nur mit Secret, ohne Key-Datei"
+        description="CSV/XLSX/XLSM pseudonymisieren/de-pseudonymisieren — nur mit Secret, ohne Key-Datei"
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("mode", choices=["encrypt", "decrypt"],
                         help="encrypt = pseudonymisieren, decrypt = zurueckfuehren")
     parser.add_argument("input", nargs="+",
-                        help="Pfad(e) zu CSV/XLSX/ZIP-Datei(en)")
+                        help="Pfad(e) zu CSV/XLSX/XLSM/ZIP-Datei(en)")
     parser.add_argument("--secret", required=True, help="Ihr geheimer Schluessel")
     parser.add_argument("--output", "-o",
                         help="Ausgabepfad (nur bei einzelner Datei)")
@@ -635,7 +653,7 @@ if __name__ == "__main__":
     parser.add_argument("--zip", action="store_true",
                         help="Ergebnis als ZIP-Datei buendeln")
     parser.add_argument("--sep", "-s", default=",",
-                        help="CSV-Trennzeichen (Standard: Komma, wird bei XLSX ignoriert)")
+                        help="CSV-Trennzeichen (Standard: Komma, wird bei XLSX/XLSM ignoriert)")
     parser.add_argument("--extra-cols",
                         help="Zusaetzliche Spalten verschluesseln (kommagetrennt, z.B. 'Kommentar,Notiz')")
     args = parser.parse_args()
@@ -657,7 +675,7 @@ if __name__ == "__main__":
     # Dateien sammeln (ZIP-Archive werden entpackt)
     all_files = collect_input_files(args.input)
     if not all_files:
-        print("FEHLER: Keine verarbeitbaren Dateien gefunden (CSV/XLSX).", file=sys.stderr)
+        print("FEHLER: Keine verarbeitbaren Dateien gefunden (CSV/XLSX/XLSM).", file=sys.stderr)
         sys.exit(1)
 
     if len(all_files) > 1:

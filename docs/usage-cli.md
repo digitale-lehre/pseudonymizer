@@ -11,7 +11,7 @@ python pseudonym.py {encrypt|decrypt} DATEI [DATEI ...] --secret SECRET [--outpu
 | Argument | Pflicht | Beschreibung |
 |---|---|---|
 | `encrypt` / `decrypt` | Ja | `encrypt` = pseudonymisieren, `decrypt` = zurueckfuehren |
-| `DATEI [DATEI ...]` | Ja | Pfad(e) zu CSV-, TSV-, TXT-, XLSX- oder ZIP-Dateien |
+| `DATEI [DATEI ...]` | Ja | Pfad(e) zu CSV-, TSV-, TXT-, XLSX-, XLSM- oder ZIP-Dateien |
 | `--secret SECRET` | Ja | Geheimer Schluessel (beliebiger String) |
 | `--output PFAD`, `-o` | Nein | Ausgabepfad (Standard: `<name>_pseudo.<ext>` bzw. `<name>_restored.<ext>`) |
 | `--sep ZEICHEN`, `-s` | Nein | CSV-Trennzeichen (Standard: Komma). Wird bei XLSX ignoriert. |
@@ -86,7 +86,7 @@ python pseudonym.py encrypt datei1.csv datei2.xlsx --secret "MeinSecret"
 
 ### ZIP-Eingabe
 
-Ein ZIP-Archiv mit CSV/XLSX-Dateien wird automatisch entpackt und alle enthaltenen Dateien verarbeitet:
+Ein ZIP-Archiv mit CSV/XLSX/XLSM-Dateien wird automatisch entpackt und alle enthaltenen Dateien verarbeitet:
 
 ```bash
 python pseudonym.py encrypt archiv.zip --secret "MeinSecret"
@@ -150,6 +150,7 @@ python pseudonym.py encrypt datei.csv --secret "MeinSecret" --extra-cols "Kommen
 | `.tsv` | Tab-separiert | Ja, via `--sep` |
 | `.txt` | Text (beliebiges Trennzeichen) | Ja, via `--sep` |
 | `.xlsx` | Excel-Datei | Nein (kein Trennzeichen noetig) |
+| `.xlsm` | Makro-aktivierte Excel-Datei (Makros bleiben erhalten) | Nein (kein Trennzeichen noetig) |
 
 
 ## Ausgabeformat

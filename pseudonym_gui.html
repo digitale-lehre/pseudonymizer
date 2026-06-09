@@ -204,7 +204,7 @@ td.changed { background: var(--orange-bg); }
   <div class="header">
     <div>
       <h1><span>Pseudonymisierung</span> Tool</h1>
-      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.5.0 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
+      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.6.0 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
     </div>
     <div class="header-right">
       <div class="badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Lokal &amp; sicher</div>
@@ -216,10 +216,10 @@ td.changed { background: var(--orange-bg); }
   <div class="card">
     <div class="dropzone" id="dropzone">
       <div class="dropzone-icon" id="dzIcon">&#128196;</div>
-      <div id="dzText" class="dropzone-text">CSV oder XLSX hierher ziehen — oder klicken</div>
+      <div id="dzText" class="dropzone-text">CSV, XLSX oder XLSM hierher ziehen — oder klicken</div>
     </div>
     <div id="fileList" class="file-list"></div>
-    <input type="file" id="fileInput" accept=".csv,.xlsx,.tsv,.txt,.zip" multiple style="display:none">
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.xlsm,.tsv,.txt,.zip" multiple style="display:none">
   </div>
 
   <div class="card">
@@ -249,14 +249,14 @@ td.changed { background: var(--orange-bg); }
               <tr><th>Typ</th><th>Spaltennamen</th></tr>
               <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, Surname, Last Name, Family Name, FAMILY_NAME_OF_STUDENT, Familienname oder Nachname</td></tr>
               <tr><td>Vorname</td><td>VORNAME, First Name, Given Name, Rufname, FIRST_NAME_OF_STUDENT</td></tr>
-              <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, Matrikelnr, Student ID, REGISTRATION_NUMBER, ID number, ID-Nummer, Kennnummer</td></tr>
+              <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, Matrikelnr, Mat.Nr., Mat-Nr., Student ID, REGISTRATION_NUMBER, ID number, ID-Nummer, Kennnummer</td></tr>
               <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, E-Mail-Adresse, Emailadresse, Mailadresse, Email address, Attendee Email</td></tr>
               <tr><td>SV-Nr.</td><td>Sozialversicherungsnummer, SVNr, SV-Nr, SV-Nummer, Versicherungsnummer, SSN</td></tr>
               <tr><td>Geburtsdatum</td><td>Geburtsdatum, Geburtstag, Geb.Datum, Birthday, Date of Birth, DOB</td></tr>
               <tr><td>Telefon</td><td>Telefon, Telefonnummer, Tel, Phone, Handy, Mobilnummer, Mobile</td></tr>
               <tr><td>Pruefer</td><td>Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in</td></tr>
               <tr><td>Anzeigename</td><td>Anzeigename, Display Name, Full Name, Student Name</td></tr>
-              <tr><td>Name</td><td>NAME — auto-composite aus Familienname + Vorname</td></tr>
+              <tr><td>Name</td><td>Composite aus Familienname + Vorname — sonst wird der ganze Wert verschluesselt</td></tr>
               <tr><td colspan="2" style="padding-top:.5rem;font-weight:600;">Valuatic</td></tr>
               <tr><td>Examiner</td><td>examiner_id, examiner_last_name, examiner_first_name</td></tr>
               <tr><td>Candidate</td><td>candidate_id, candidate_last_name, candidate_first_name</td></tr>
@@ -341,6 +341,7 @@ const COLUMN_ALIASES = {
     "FIRST_NAME_OF_STUDENT","First_Name_of_Student"],
   matnr: ["MATRIKELNUMMER","Matrikelnummer","matrikelnummer","Matnr","matnr","MATNR",
     "MatrNr","Matrikel","matrikel","MATRIKEL","Matrikelnr","Matrikelnr.",
+    "Mat.Nr.","Mat.Nr","Mat-Nr.","Mat-Nr","Mat. Nr.",
     "StudentID","Student_ID","Student ID",
     "REGISTRATION_NUMBER","Registration_Number","Registration Number",
     "ID number","ID Number","ID-Nummer","Kennnummer"],
@@ -535,12 +536,12 @@ async function addFiles(fileList) {
     if (file.name.match(/\.zip$/i)) {
       try {
         const zip = await JSZip.loadAsync(file);
-        const supported = /\.(csv|tsv|txt|xlsx)$/i;
+        const supported = /\.(csv|tsv|txt|xlsx|xlsm)$/i;
         for (const [path, entry] of Object.entries(zip.files)) {
           if (entry.dir || !supported.test(path)) continue;
           const data = await entry.async('arraybuffer');
           const name = path.split('/').pop();
-          const ftype = name.match(/\.xlsx$/i) ? 'xlsx' : 'csv';
+          const ftype = name.match(/\.(xlsx|xlsm)$/i) ? 'xlsx' : 'csv';
           const enc = detectEncoding(data);
           const fobj = { name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
           parseOneFile(fobj);
@@ -552,7 +553,7 @@ async function addFiles(fileList) {
       }
     } else {
       const data = await file.arrayBuffer();
-      const ftype = file.name.match(/\.xlsx$/i) ? 'xlsx' : 'csv';
+      const ftype = file.name.match(/\.(xlsx|xlsm)$/i) ? 'xlsx' : 'csv';
       const enc = detectEncoding(data);
       const fobj = { name: file.name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
       parseOneFile(fobj);
@@ -817,7 +818,8 @@ async function processFile() {
           existingVals.add(sheet.headers[idx]);
         }
       }
-      if (Object.keys(idCols).length === 0) {
+      const nameColName = findNameCol(sheet.headers);
+      if (Object.keys(idCols).length === 0 && !nameColName) {
         log(`  Sheet "${sheet.name}": keine Identitaetsspalten [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
         sheetsSkipped++;
         resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
@@ -825,7 +827,6 @@ async function processFile() {
       }
       const colIndices = {};
       for (const [canon, actual] of Object.entries(idCols)) colIndices[canon] = sheet.headers.indexOf(actual);
-      const nameColName = findNameCol(sheet.headers);
       let nameColIdx = nameColName ? sheet.headers.indexOf(nameColName) : -1;
       let nameIsComposite = false, nameOrder = 'fam_vor';
       const famIdx = colIndices.familienname ?? -1;
@@ -835,8 +836,14 @@ async function processFile() {
         if (nv === `${fv} ${vv}`.trim()) { nameIsComposite = true; nameOrder = 'fam_vor'; }
         else if (nv === `${vv} ${fv}`.trim()) { nameIsComposite = true; nameOrder = 'vor_fam'; }
       }
+      // NAME-Spalte ohne Composite: als regulaere Spalte ganz verschluesseln
+      if (nameColIdx >= 0 && !nameIsComposite && !Object.values(colIndices).includes(nameColIdx)) {
+        colIndices['_name'] = nameColIdx;
+      }
       const customInSheet = Object.keys(idCols).filter(k => k.startsWith('_custom_')).length;
-      const colInfo = Object.values(idCols).join(', ') + (nameIsComposite && nameColName ? ' + '+nameColName : '');
+      const encryptedColNames = Object.values(idCols).slice();
+      if (colIndices['_name'] !== undefined && nameColName) encryptedColNames.push(nameColName);
+      const colInfo = encryptedColNames.join(', ') + (nameIsComposite && nameColName ? ' + '+nameColName : '');
       log(`  Sheet "${sheet.name}": ${colInfo}${customInSheet ? ` (${customInSheet} benutzerdefiniert)` : ''}`);
       const newRows = [];
       let sheetCells = 0;
@@ -868,9 +875,13 @@ async function processFile() {
     if (fq.type === 'xlsx') {
       const wb = XLSX.utils.book_new();
       for (const rs of resultSheets) { const data = [...(rs.metaRows||[]), rs.headers, ...rs.rows]; const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, rs.name); }
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      outName = fq.name.replace(/\.xlsx$/i, suffix + '.xlsx');
+      const isXlsm = /\.xlsm$/i.test(fq.name);
+      if (isXlsm) log('  Hinweis: .xlsm — Makros und Formatierung gehen in der Browser-Version verloren (Daten werden korrekt verschluesselt).', 'warn');
+      const wbout = XLSX.write(wb, { bookType: isXlsm ? 'xlsm' : 'xlsx', type: 'array' });
+      const mime = isXlsm ? 'application/vnd.ms-excel.sheet.macroEnabled.12' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      blob = new Blob([wbout], { type: mime });
+      const outExt = isXlsm ? '.xlsm' : '.xlsx';
+      outName = fq.name.replace(/\.(xlsx|xlsm)$/i, suffix + outExt);
     } else {
       const sep = fq.detectedSep || ',';
       const rs = resultSheets[0];
@@ -976,7 +987,7 @@ function updateDropzoneUI() {
   } else {
     dz.classList.remove('has-file');
     icon.textContent = '\uD83D\uDCC4';
-    text.textContent = 'CSV / XLSX / ZIP hierher ziehen \u2014 oder klicken (Mehrfachauswahl)';
+    text.textContent = 'CSV / XLSX / XLSM / ZIP hierher ziehen \u2014 oder klicken (Mehrfachauswahl)';
   }
 }
 
