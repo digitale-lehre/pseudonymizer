@@ -303,3 +303,51 @@ def test_xlsx_name_not_composite_fallback(tmp_path):
     process_file(str(enc), str(dec), "secret", "decrypt")
     ws2 = load_workbook(dec).active
     assert ws2.cell(row=2, column=3).value == "Dr. Max Mustermann"
+
+
+def test_make_output_path_xlsm():
+    assert make_output_path(Path("/d/data.xlsm"), "encrypt") == "/d/data_pseudo.xlsm"
+
+
+def test_collect_input_files_xlsm_plain(tmp_path):
+    x = tmp_path / "macro.xlsm"
+    x.write_bytes(b"PKdummy")  # content irrelevant: collection checks suffix only
+    result = collect_input_files([str(x)])
+    assert len(result) == 1 and Path(result[0]).name == "macro.xlsm"
+
+
+def test_collect_input_files_xlsm_in_zip(tmp_path):
+    inner = tmp_path / "macro.xlsm"
+    inner.write_bytes(b"PKdummy")
+    zp = tmp_path / "bundle.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        zf.write(inner, "macro.xlsm")
+    result = collect_input_files([str(zp)])
+    assert len(result) == 1 and Path(result[0]).name == "macro.xlsm"
+
+
+def test_process_file_xlsm_roundtrip(tmp_path):
+    src = tmp_path / "macro.xlsm"
+    _make_xlsm(src, [["Vorname", "Familienname"], ["Max", "Mustermann"]])
+    enc = tmp_path / "macro_pseudo.xlsm"
+    process_file(str(src), str(enc), "secret123", "encrypt")
+    assert enc.exists()
+    ws = load_workbook(enc).active
+    assert ws.cell(row=2, column=1).value != "Max"  # encrypted
+    dec = tmp_path / "macro_restored.xlsm"
+    process_file(str(enc), str(dec), "secret123", "decrypt")
+    ws2 = load_workbook(dec).active
+    assert ws2.cell(row=2, column=1).value == "Max"
+    assert ws2.cell(row=2, column=2).value == "Mustermann"
+
+
+def test_process_file_xlsm_preserves_vba(tmp_path):
+    src = tmp_path / "macro.xlsm"
+    _make_xlsm(src, [["Vorname", "Familienname"], ["Max", "Mustermann"]])
+    with zipfile.ZipFile(src) as z:
+        assert "xl/vbaProject.bin" in z.namelist()
+    enc = tmp_path / "macro_pseudo.xlsm"
+    process_file(str(src), str(enc), "secret123", "encrypt")
+    with zipfile.ZipFile(enc) as z:
+        assert "xl/vbaProject.bin" in z.namelist()
+        assert z.read("xl/vbaProject.bin") == b"DUMMY-VBA"

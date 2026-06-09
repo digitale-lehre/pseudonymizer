@@ -1,6 +1,7 @@
 # Sensible Daten — NIEMALS committen
 *.csv
 *.xlsx
+*.xlsm
 *.xls
 export_KEY.csv
 
@@ -17,6 +18,9 @@ dist/
 build/
 .venv/
 venv/
+
+# Screenshots und Bilder
+*.png
 
 # OS
 .DS_Store

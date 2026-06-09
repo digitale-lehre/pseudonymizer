@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Pseudonymisierung & De-Pseudonymisierung mit nur einem Secret.
-Keine separate Key-Datei noetig. Unterstuetzt CSV und XLSX.
+Keine separate Key-Datei noetig. Unterstuetzt CSV, XLSX und XLSM.
 
 Verwendet AES-Verschluesselung (deterministisch): gleicher Secret + gleiche Daten
 = gleiches Pseudonym. Nur wer den Secret kennt, kann zurueckfuehren.
@@ -390,7 +390,7 @@ def _fix_xlsx_drawings(input_path: str) -> str:
 
         # Reparatur: Drawing-Relationships aus Sheet-Rels entfernen
         print("  HINWEIS: Repariere fehlende Drawing-Referenzen in XLSX...")
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=Path(input_path).suffix)
         os.close(tmp_fd)
 
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
@@ -415,11 +415,12 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
 
     key = derive_key(secret)
     transform = encrypt_value if mode == "encrypt" else decrypt_value
+    is_xlsm = Path(input_path).suffix.lower() == ".xlsm"
 
     # Repariere fehlende Drawings falls noetig
     fixed_path = _fix_xlsx_drawings(input_path)
     try:
-        wb = load_workbook(fixed_path)
+        wb = load_workbook(fixed_path, keep_vba=is_xlsm)
     finally:
         if fixed_path != input_path:
             import os
@@ -562,8 +563,8 @@ def collect_input_files(paths: list) -> list:
     import zipfile
     import tempfile
 
-    SUPPORTED = {".csv", ".tsv", ".txt", ".xlsx"}
-    ZIP_EXTRACT = {".csv", ".tsv", ".xlsx"}
+    SUPPORTED = {".csv", ".tsv", ".txt", ".xlsx", ".xlsm"}
+    ZIP_EXTRACT = {".csv", ".tsv", ".xlsx", ".xlsm"}
     collected = []
 
     for p in paths:
@@ -621,12 +622,12 @@ def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
 def process_file(input_path: str, output_path: str, secret: str, mode: str, sep: str = ",", extra_cols: list = None):
     """Verarbeitet eine einzelne CSV/XLSX-Datei (Dispatch nach Dateityp)."""
     ext = Path(input_path).suffix.lower()
-    if ext == ".xlsx":
+    if ext in (".xlsx", ".xlsm"):
         process_xlsx(input_path, output_path, secret, mode, extra_cols=extra_cols)
     elif ext in (".csv", ".tsv", ".txt"):
         process_csv(input_path, output_path, secret, mode, sep, extra_cols=extra_cols)
     else:
-        raise ValueError(f"Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .tsv, .txt, .xlsx")
+        raise ValueError(f"Unbekanntes Dateiformat '{ext}'. Unterstuetzt: .csv, .tsv, .txt, .xlsx, .xlsm")
 
 
 # ======================== MAIN ========================
@@ -639,7 +640,7 @@ if __name__ == "__main__":
     parser.add_argument("mode", choices=["encrypt", "decrypt"],
                         help="encrypt = pseudonymisieren, decrypt = zurueckfuehren")
     parser.add_argument("input", nargs="+",
-                        help="Pfad(e) zu CSV/XLSX/ZIP-Datei(en)")
+                        help="Pfad(e) zu CSV/XLSX/XLSM/ZIP-Datei(en)")
     parser.add_argument("--secret", required=True, help="Ihr geheimer Schluessel")
     parser.add_argument("--output", "-o",
                         help="Ausgabepfad (nur bei einzelner Datei)")
@@ -648,7 +649,7 @@ if __name__ == "__main__":
     parser.add_argument("--zip", action="store_true",
                         help="Ergebnis als ZIP-Datei buendeln")
     parser.add_argument("--sep", "-s", default=",",
-                        help="CSV-Trennzeichen (Standard: Komma, wird bei XLSX ignoriert)")
+                        help="CSV-Trennzeichen (Standard: Komma, wird bei XLSX/XLSM ignoriert)")
     parser.add_argument("--extra-cols",
                         help="Zusaetzliche Spalten verschluesseln (kommagetrennt, z.B. 'Kommentar,Notiz')")
     args = parser.parse_args()
@@ -670,7 +671,7 @@ if __name__ == "__main__":
     # Dateien sammeln (ZIP-Archive werden entpackt)
     all_files = collect_input_files(args.input)
     if not all_files:
-        print("FEHLER: Keine verarbeitbaren Dateien gefunden (CSV/XLSX).", file=sys.stderr)
+        print("FEHLER: Keine verarbeitbaren Dateien gefunden (CSV/XLSX/XLSM).", file=sys.stderr)
         sys.exit(1)
 
     if len(all_files) > 1:
