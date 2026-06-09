@@ -46,7 +46,7 @@ pip install cryptography openpyxl
 | Paket | Zweck |
 |---|---|
 | `cryptography` | AES-256-CBC Verschluesselung und PBKDF2 Schluesselableitung |
-| `openpyxl` | XLSX-Dateien lesen und schreiben (Formatierung erhalten) |
+| `openpyxl` | XLSX/XLSM-Dateien lesen und schreiben (Formatierung erhalten, bei XLSM auch Makros) |
 
 ### Installation pruefen
 
