@@ -210,3 +210,19 @@ def test_name_composite_still_recomposed(tmp_path):
     dec = tmp_path / "data_restored.csv"
     process_file(str(enc), str(dec), "secret", "decrypt", ",")
     assert "Mustermann Max" in dec.read_text(encoding="utf-8")
+
+
+def test_name_column_only_no_other_identity(tmp_path):
+    """A CSV whose only recognized column is 'Name' is still encrypted (not rejected)."""
+    src = tmp_path / "names.csv"
+    src.write_text("Name\nMustermann\nTesterin\n", encoding="utf-8")
+    enc = tmp_path / "names_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ",")
+    content = enc.read_text(encoding="utf-8")
+    assert "Mustermann" not in content
+    assert "Testerin" not in content
+    assert "Name" in content  # header intact
+    dec = tmp_path / "names_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ",")
+    restored = dec.read_text(encoding="utf-8")
+    assert "Mustermann" in restored and "Testerin" in restored

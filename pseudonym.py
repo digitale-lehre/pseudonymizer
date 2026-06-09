@@ -270,7 +270,7 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
                     break
 
     name_col = find_name_col(fieldnames)
-    if not id_cols:
+    if not id_cols and not name_col:
         print(f"FEHLER: Keine Identitaetsspalten gefunden.", file=sys.stderr)
         print(f"Vorhandene Spalten: {fieldnames}", file=sys.stderr)
         sys.exit(1)
