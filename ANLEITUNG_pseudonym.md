@@ -217,13 +217,13 @@ MLW-Exporte enthalten Metadaten-Zeilen vor der eigentlichen Spalten-Kopfzeile (z
 
 ```bash
 # 1. MedCampus-Export pseudonymisieren
-python pseudonym.py encrypt L0106_26SPavelka20260216.csv --secret "SoSe2026-Geheim" --sep ";"
+python pseudonym.py encrypt medcampus_export.csv --secret "SoSe2026-Geheim" --sep ";"
 
 # 2. Pseudonymisierte Datei weitergeben / analysieren
 #    (Pseudonyme sind URL-sichere Base64-Strings)
 
 # 3. Spaeter: Original wiederherstellen
-python pseudonym.py decrypt L0106_26SPavelka20260216_pseudo.csv --secret "SoSe2026-Geheim" --sep ";"
+python pseudonym.py decrypt medcampus_export_pseudo.csv --secret "SoSe2026-Geheim" --sep ";"
 ```
 
 Fuer XLSX-Dateien (z.B. Tertial-Zuteilungen):
