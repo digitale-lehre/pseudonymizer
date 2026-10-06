@@ -60,8 +60,13 @@ Both implementations handle multiple file encodings for CSV:
 - **UTF-8** (with and without BOM)
 - **UTF-16 LE** (with BOM — used by Webex exports)
 - **UTF-16 BE** (with BOM)
+- **Windows-1252** (no BOM, not valid UTF-8 -- ANSI exports, e.g. from MedCampus or Excel)
 
-Detection is via `detect_file_encoding()` (Python) / `detectEncoding()` (JS). The original encoding and BOM are preserved on output for byte-identical roundtrips.
+Undefined Windows-1252 bytes (0x81, 0x8D, 0x8F, 0x90, 0x9D) map to the matching C1 characters, as browsers do (Python: `cp1252-c1` error handler).
+
+Detection is via `detect_file_encoding()` (Python) / `detectEncoding()` (JS). The original encoding, BOM and trailing newline (present or absent) are preserved on output for byte-identical roundtrips.
+
+Exception: a pure-ASCII input without BOM (e.g. a pseudonymized file whose umlauts were all in encrypted columns) whose output contains non-ASCII characters is written as **UTF-8 with BOM**, because the original encoding cannot be determined and Excel needs the BOM to show umlauts correctly.
 
 ## Build & Test Commands
 
@@ -160,6 +165,6 @@ The HTML GUI must produce the same token for the same input and secret.
 Both implementations scan for the header row (up to 20 rows). Files with metadata rows before the header (e.g., MLW exports) are supported. Metadata rows are preserved unchanged in output.
 
 ### Modifying CSV format preservation
-- `detect_file_encoding()`: detects encoding (UTF-8/UTF-16 LE/BE) and BOM from raw bytes
+- `detect_file_encoding()`: detects encoding (UTF-8/UTF-16 LE/BE/Windows-1252) and BOM from raw bytes
 - Quoting detection: inline in `process_csv()`, checks header row (not first line) for QUOTE_ALL
 - Encoding, BOM, quoting, and line endings must all be preserved for byte-identical roundtrips

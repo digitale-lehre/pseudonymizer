@@ -63,7 +63,10 @@ Nach Eingabe des Secrets und Klick auf "Verschluesseln" oder "Entschluesseln" we
 
 ### ZIP-Download
 
-Bei mehreren Ergebnisdateien werden alle Ergebnisse automatisch in ein ZIP-Archiv gebuendelt und zum Download angeboten.
+Bei mehreren Ergebnisdateien werden alle Ergebnisse automatisch in ein ZIP-Archiv gebuendelt und zum Download angeboten. Der Name richtet sich nach dem Inhalt:
+
+- Dateien aus einer hochgeladenen ZIP-Datei: `<ZIP-Name>_pseudo.zip` bzw. `<ZIP-Name>_restored.zip`
+- Sonst: gemeinsamer Anfang der Dateinamen, Modus, Anzahl und Datum, z.B. `Teilnehmerliste_pseudo_9Dateien_2026-10-06.zip` (ohne gemeinsamen Anfang: `Batch_pseudo_...`)
 
 ### Dateiauswahl fuer Vorschau
 

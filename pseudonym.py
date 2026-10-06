@@ -22,6 +22,7 @@ Verwendung:
 
 import argparse
 import base64
+import codecs
 import csv
 import hashlib
 import hmac
@@ -33,7 +34,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 # Spaltennamen-Mapping: verschiedene Schreibweisen -> kanonischer Schluessel
 # Jeder kanonische Schluessel hat eine Liste von moeglichen Spaltennamen
@@ -193,9 +194,28 @@ def find_header_row(rows, max_scan=20):
 
 # ======================== CSV ========================
 
+_CP1252_UNDEFINED = (0x81, 0x8D, 0x8F, 0x90, 0x9D)
+
+
+def _cp1252_c1_passthrough(err):
+    """In Windows-1252 undefinierte Bytes wie der Browser (WHATWG) auf die
+    gleichwertigen C1-Zeichen abbilden (und beim Schreiben zurueck)."""
+    if isinstance(err, UnicodeDecodeError):
+        return "".join(chr(b) for b in err.object[err.start:err.end]), err.end
+    if isinstance(err, UnicodeEncodeError):
+        chars = err.object[err.start:err.end]
+        if all(ord(c) in _CP1252_UNDEFINED for c in chars):
+            return bytes(ord(c) for c in chars), err.end
+    raise err
+
+
+codecs.register_error("cp1252-c1", _cp1252_c1_passthrough)
+
+
 def detect_file_encoding(raw: bytes) -> tuple:
     """Erkennt Encoding und BOM-Laenge aus rohen Bytes.
-    Unterstuetzt UTF-8 (mit/ohne BOM), UTF-16 LE und UTF-16 BE.
+    Unterstuetzt UTF-8 (mit/ohne BOM), UTF-16 LE, UTF-16 BE und Windows-1252
+    (BOM-lose Dateien, die kein gueltiges UTF-8 sind, z.B. ANSI-Exporte).
     Gibt (encoding, bom_length) zurueck."""
     if len(raw) >= 2 and raw[:2] == b"\xff\xfe":
         return "utf-16-le", 2
@@ -203,6 +223,10 @@ def detect_file_encoding(raw: bytes) -> tuple:
         return "utf-16-be", 2
     if len(raw) >= 3 and raw[:3] == b"\xef\xbb\xbf":
         return "utf-8", 3
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return "cp1252", 0
     return "utf-8", 0
 
 
@@ -210,12 +234,13 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
     key = derive_key(secret)
     transform = encrypt_value if mode == "encrypt" else decrypt_value
 
-    # Datei als Bytes lesen und Encoding erkennen (UTF-8, UTF-16 LE/BE)
+    # Datei als Bytes lesen und Encoding erkennen (UTF-8, UTF-16 LE/BE, Windows-1252)
     with open(input_path, "rb") as f:
         raw = f.read()
 
     encoding, bom_len = detect_file_encoding(raw)
-    text = raw[bom_len:].decode(encoding)
+    codec_errors = "cp1252-c1" if encoding == "cp1252" else "strict"
+    text = raw[bom_len:].decode(encoding, errors=codec_errors)
     has_crlf = "\r\n" in text
 
     # Alle Zeilen als Listen parsen, um Header-Zeile zu finden
@@ -329,10 +354,18 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
         dict_writer.writerow(new_row)
 
     output_text = str_out.getvalue()
+    # Fehlender Zeilenumbruch am Dateiende bleibt erhalten (byte-identischer Roundtrip)
+    if not text.endswith("\n") and output_text.endswith(line_terminator):
+        output_text = output_text[:-len(line_terminator)]
+
+    # Reine ASCII-Eingabe (z.B. Pseudonym-Datei), Ausgabe mit Umlauten: Original-Kodierung
+    # nicht bestimmbar -> UTF-8 mit BOM, damit Excel die Umlaute korrekt anzeigt
+    bom = raw[:bom_len]
+    if encoding == "utf-8" and bom_len == 0 and raw.isascii() and not output_text.isascii():
+        bom = codecs.BOM_UTF8
     with open(output_path, "wb") as f:
-        if bom_len > 0:
-            f.write(raw[:bom_len])
-        f.write(output_text.encode(encoding))
+        f.write(bom)
+        f.write(output_text.encode(encoding, errors=codec_errors))
 
     cols_info = ", ".join(f"{v}" for v in id_cols.values())
     if name_col and name_is_composite:
@@ -342,7 +375,9 @@ def process_csv(input_path: str, output_path: str, secret: str, mode: str, sep: 
     print(f"  Eingabe:    {input_path} ({len(rows)} Zeilen)")
     print(f"  Ausgabe:    {output_path}")
     print(f"  Spalten:    {cols_info}")
-    print(f"  Encoding:   {encoding.upper()}{' (BOM)' if bom_len > 0 else ''}")
+    print(f"  Encoding:   {encoding.upper()}{' (BOM)' if bom else ''}")
+    if bom and bom_len == 0:
+        print("  Hinweis:    Eingabe war reines ASCII -> Ausgabe als UTF-8 mit BOM (Excel-kompatibel)")
     if header_idx > 0:
         print(f"  Metadaten:  {header_idx} Zeile(n) vor Header (unveraendert)")
     print(f"  Verfahren:  AES-256-CBC (deterministisch, PBKDF2)")
@@ -561,6 +596,14 @@ def process_xlsx(input_path: str, output_path: str, secret: str, mode: str, extr
 
 # ======================== BATCH HELPERS ========================
 
+_ZIP_SOURCES = {}  # entpackte Datei (str) -> Quell-ZIP (Path)
+
+
+def zip_source(path):
+    """Gibt das Quell-ZIP einer aus einem ZIP entpackten Datei zurueck (sonst None)."""
+    return _ZIP_SOURCES.get(str(path))
+
+
 def collect_input_files(paths: list) -> list:
     """Sammelt Eingabedateien. ZIP-Archive werden entpackt (nur CSV/TSV/XLSX/XLSM).
     Gibt Liste von Path-Objekten zurueck (ggf. in tempdir extrahiert)."""
@@ -589,6 +632,7 @@ def collect_input_files(paths: list) -> list:
                             counter += 1
                         with open(target, "wb") as f:
                             f.write(zf.read(member))
+                        _ZIP_SOURCES[str(target)] = p
                         collected.append(target)
             if not any(f.parent == tmpdir for f in collected):
                 import shutil
@@ -608,6 +652,25 @@ def create_output_zip(results: list, zip_path: str):
         for _, output_path in results:
             zf.write(output_path, Path(output_path).name)
     print(f"\n  ZIP erstellt: {zip_path}")
+
+
+def make_zip_name(input_files: list, mode: str) -> str:
+    """ZIP-Name (wie GUI): Quell-ZIP bzw. gemeinsamer Dateinamen-Anfang + Modus + Anzahl + Datum."""
+    import os
+    from datetime import date
+
+    suffix = "_pseudo" if mode == "encrypt" else "_restored"
+    sources = {zip_source(f) for f in input_files}
+    if len(sources) == 1 and None not in sources:
+        return f"{sources.pop().stem}{suffix}.zip"
+    stems = [Path(f).stem for f in input_files]
+    prefix = os.path.commonprefix(stems)
+    if prefix != stems[0]:
+        prefix = re.sub(r"[^_\-. ]*$", "", prefix)  # nicht mitten im Wort abschneiden
+    prefix = re.sub(r"[_\-. ]+$", "", prefix)
+    if len(prefix) < 3:
+        prefix = "Batch"
+    return f"{prefix}{suffix}_{len(input_files)}Dateien_{date.today().isoformat()}.zip"
 
 
 def make_output_path(input_path, mode: str, output_dir: str = None) -> str:
@@ -686,7 +749,10 @@ if __name__ == "__main__":
         if args.output and len(all_files) == 1:
             out = args.output
         else:
-            out = make_output_path(f, args.mode, args.output_dir)
+            # Aus ZIP entpackte Dateien: Ausgabe neben das ZIP (Temp-Verzeichnis wird geloescht)
+            src_zip = zip_source(f)
+            out_dir = args.output_dir or (str(src_zip.parent) if src_zip else None)
+            out = make_output_path(f, args.mode, out_dir)
         try:
             process_file(str(f), out, args.secret, args.mode, args.sep, extra_cols=extra_cols)
             results.append((str(f), out, True, None))
@@ -702,8 +768,8 @@ if __name__ == "__main__":
             if args.output_dir:
                 zip_dir = args.output_dir
             else:
-                zip_dir = str(first_input.parent)
-            zip_name = str(Path(zip_dir) / f"batch_{args.mode}_{len(successful)}files.zip")
+                zip_dir = str((zip_source(first_input) or first_input).parent)
+            zip_name = str(Path(zip_dir) / make_zip_name([r[0] for r in successful], args.mode))
             create_output_zip(successful, zip_name)
 
     # Zusammenfassung bei Batch

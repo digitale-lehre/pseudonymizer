@@ -15,7 +15,7 @@
    python pseudonym.py encrypt datei.csv --secret "..." --sep ";"
    ```
 
-3. **BOM-Probleme:** Manche Excel-Exporte erzeugen eine BOM am Dateianfang. Das Tool behandelt dies automatisch, aber bei ungewoehnlichen Kodierungen kann es zu Problemen kommen.
+3. **Kodierung:** Erkannt werden UTF-8 (mit/ohne BOM), UTF-16 (mit BOM, z.B. Webex) und Windows-1252/ANSI (z.B. MedCampus- und Excel-CSV-Exporte). Die Original-Kodierung bleibt in der Ausgabe erhalten. Ausnahme: Enthaelt die Eingabe nur ASCII-Zeichen (etwa eine Pseudonym-Datei, deren Umlaute alle verschluesselt waren), wird die wiederhergestellte Datei als UTF-8 mit BOM geschrieben, damit Excel die Umlaute korrekt anzeigt.
 
 
 ### Entschluesselung liefert unleserliche Zeichen

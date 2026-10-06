@@ -54,7 +54,7 @@ pip install cryptography openpyxl
 python pseudonym.py --version
 ```
 
-Erwartete Ausgabe: `pseudonym.py 0.6.0`
+Erwartete Ausgabe: `pseudonym.py 0.6.1`
 
 ### Optionale virtuelle Umgebung
 

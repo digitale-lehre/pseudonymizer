@@ -374,3 +374,140 @@ def test_matnr_dot_alias_encrypted_roundtrip(tmp_path):
     dec = tmp_path / "data_restored.csv"
     process_file(str(enc), str(dec), "secret", "decrypt", ",")
     assert "01634795" in dec.read_text(encoding="utf-8")
+
+
+def test_detect_file_encoding_cp1252_without_bom():
+    """BOM-lose Dateien, die kein gueltiges UTF-8 sind, werden als Windows-1252 erkannt
+    (ANSI-Exporte aus MedCampus/Excel)."""
+    from pseudonym import detect_file_encoding
+    assert detect_file_encoding("Universit\u00e4tsleitung".encode("cp1252")) == ("cp1252", 0)
+    assert detect_file_encoding("Universit\u00e4tsleitung".encode("utf-8")) == ("utf-8", 0)
+    assert detect_file_encoding(b"plain ascii") == ("utf-8", 0)
+
+
+def test_cp1252_csv_roundtrip_byte_identical(tmp_path):
+    """Windows-1252-CSV: Umlaute werden korrekt verschluesselt und byte-identisch
+    wiederhergestellt; nicht verschluesselte Spalten bleiben in Windows-1252."""
+    original = (
+        '"Familienname";"Vorname";"Einrichtung"\r\n'
+        '"M\u00fcller";"J\u00fcrgen";"B\u00fcro der Betriebsr\u00e4te \u20ac"\r\n'
+    ).encode("cp1252")
+    src = tmp_path / "ansi.csv"
+    src.write_bytes(original)
+    enc = tmp_path / "ansi_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ";")
+    enc_text = enc.read_bytes().decode("cp1252")
+    assert "M\u00fcller" not in enc_text
+    assert "B\u00fcro der Betriebsr\u00e4te \u20ac" in enc_text
+    dec = tmp_path / "ansi_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ";")
+    assert dec.read_bytes() == original
+
+
+def test_cp1252_tokens_match_utf8_tokens(tmp_path):
+    """Gleicher Name ergibt denselben Token, egal ob die Quelldatei UTF-8 oder
+    Windows-1252 kodiert ist."""
+    text = "Familienname;Ort\nM\u00fcller;Gm\u00fcnd\n"
+    for enc_name in ("utf-8", "cp1252"):
+        (tmp_path / f"{enc_name}.csv").write_bytes(text.encode(enc_name))
+        process_file(str(tmp_path / f"{enc_name}.csv"), str(tmp_path / f"{enc_name}_p.csv"),
+                     "secret", "encrypt", ";")
+    tok_utf8 = (tmp_path / "utf-8_p.csv").read_bytes().decode("utf-8").splitlines()[1].split(";")[0]
+    tok_ansi = (tmp_path / "cp1252_p.csv").read_bytes().decode("cp1252").splitlines()[1].split(";")[0]
+    assert tok_utf8 == tok_ansi
+
+
+def test_cp1252_undefined_bytes_roundtrip(tmp_path):
+    """In Windows-1252 undefinierte Bytes (0x81, 0x8D, 0x8F, 0x90, 0x9D) werden wie im
+    Browser (WHATWG) auf C1-Zeichen abgebildet und unveraendert zurueckgeschrieben."""
+    original = b"Familienname;Notiz\nM\xfcller;x\x81\x8d\x8f\x90\x9dy\n"
+    src = tmp_path / "odd.csv"
+    src.write_bytes(original)
+    enc = tmp_path / "odd_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ";")
+    dec = tmp_path / "odd_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ";")
+    assert dec.read_bytes() == original
+
+
+def test_csv_without_trailing_newline_roundtrip(tmp_path):
+    """Fehlender Zeilenumbruch am Dateiende bleibt erhalten (byte-identisch)."""
+    original = b'"Familienname";"Vorname"\r\n"Muster";"Max"\r\n"Test";"Eva"'
+    src = tmp_path / "noeol.csv"
+    src.write_bytes(original)
+    enc = tmp_path / "noeol_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ";")
+    assert not enc.read_bytes().endswith(b"\n")
+    dec = tmp_path / "noeol_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ";")
+    assert dec.read_bytes() == original
+
+
+def test_ascii_input_with_non_ascii_output_gets_utf8_bom(tmp_path):
+    """Reine ASCII-Eingabe (Kodierung unbestimmbar), Ausgabe mit Umlauten:
+    UTF-8 mit BOM, damit Excel die Umlaute korrekt anzeigt."""
+    for src_enc in ("cp1252", "utf-8"):
+        src = tmp_path / f"{src_enc}.csv"
+        src.write_bytes("Familienname;Vorname\nMüller;Jürgen\n".encode(src_enc))
+        enc = tmp_path / f"{src_enc}_pseudo.csv"
+        process_file(str(src), str(enc), "secret", "encrypt", ";")
+        assert enc.read_bytes().isascii()
+        dec = tmp_path / f"{src_enc}_restored.csv"
+        process_file(str(enc), str(dec), "secret", "decrypt", ";")
+        assert dec.read_bytes() == b"\xef\xbb\xbf" + "Familienname;Vorname\nMüller;Jürgen\n".encode("utf-8")
+
+
+def test_ascii_roundtrip_stays_without_bom(tmp_path):
+    """Ohne Umlaute bleibt eine ASCII-Datei ohne BOM (byte-identisch)."""
+    original = b"Familienname;Vorname\nMuster;Max\n"
+    src = tmp_path / "ascii.csv"
+    src.write_bytes(original)
+    enc = tmp_path / "ascii_pseudo.csv"
+    process_file(str(src), str(enc), "secret", "encrypt", ";")
+    dec = tmp_path / "ascii_restored.csv"
+    process_file(str(enc), str(dec), "secret", "decrypt", ";")
+    assert dec.read_bytes() == original
+
+
+def test_make_zip_name_common_prefix():
+    """ZIP-Name aus gemeinsamem Dateinamen-Anfang (an Trennzeichen gekuerzt)."""
+    from datetime import date
+    from pseudonym import make_zip_name
+    files = [
+        "/x/Teilnehmerliste_LV101_2026W01.csv",
+        "/x/Teilnehmerliste_LV101_2026S02.csv",
+    ]
+    today = date.today().isoformat()
+    assert make_zip_name(files, "encrypt") == f"Teilnehmerliste_LV101_pseudo_2Dateien_{today}.zip"
+    assert make_zip_name(["/x/Liste_A.csv", "/x/Liste_B.xlsx"], "decrypt") == \
+        f"Liste_restored_2Dateien_{today}.zip"
+    assert make_zip_name(["/x/alpha.csv", "/x/beta.csv"], "encrypt") == \
+        f"Batch_pseudo_2Dateien_{today}.zip"
+
+
+def test_make_zip_name_from_source_zip(tmp_path):
+    """Alle Dateien aus einem ZIP: <ZIP-Name>_pseudo.zip."""
+    from pseudonym import make_zip_name
+    zp = tmp_path / "Export Okt.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        zf.writestr("a.csv", "Vorname\nMax\n")
+        zf.writestr("b.csv", "Vorname\nEva\n")
+    files = collect_input_files([str(zp)])
+    assert make_zip_name(files, "encrypt") == "Export Okt_pseudo.zip"
+
+
+def test_cli_zip_input_writes_results_next_to_zip(tmp_path):
+    """Ergebnisse aus einem ZIP-Eingang landen neben dem ZIP, nicht im
+    (anschliessend geloeschten) Temp-Verzeichnis."""
+    import subprocess
+    zp = tmp_path / "Export.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        zf.writestr("a.csv", "Vorname\nMax\n")
+        zf.writestr("b.csv", "Vorname\nEva\n")
+    script = Path(__file__).parent.parent / "pseudonym.py"
+    subprocess.run([sys.executable, str(script), "encrypt", str(zp), "--secret", "s", "--zip"],
+                   check=True, capture_output=True)
+    assert (tmp_path / "a_pseudo.csv").exists()
+    assert (tmp_path / "b_pseudo.csv").exists()
+    with zipfile.ZipFile(tmp_path / "Export_pseudo.zip") as z:
+        assert sorted(z.namelist()) == ["a_pseudo.csv", "b_pseudo.csv"]

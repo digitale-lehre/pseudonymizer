@@ -204,7 +204,7 @@ td.changed { background: var(--orange-bg); }
   <div class="header">
     <div>
       <h1><span>Pseudonymisierung</span> Tool</h1>
-      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.6.0 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
+      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.6.1 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
     </div>
     <div class="header-right">
       <div class="badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Lokal &amp; sicher</div>
@@ -323,6 +323,7 @@ let fileQueue = [];         // [{name, type, raw, encoding, bomLength, parsed, d
 let activeFileIdx = 0;      // Currently previewed file index
 let currentMode = 'encrypt';
 let batchResults = [];      // [{blob, name, totalCells, sheetsProcessed, sheetsSkipped, resultSheets}]
+let batchZipName = '';      // Name des ZIP-Downloads, beim Verarbeiten festgelegt
 let activeSheet = 0;
 let compareView = 'orig';
 let customCols = new Set();  // User-selected extra columns to encrypt
@@ -487,11 +488,35 @@ function detectEncoding(buffer) {
   if (b.length >= 2 && b[0] === 0xFF && b[1] === 0xFE) return { encoding: 'utf-16le', bomLength: 2 };
   if (b.length >= 2 && b[0] === 0xFE && b[1] === 0xFF) return { encoding: 'utf-16be', bomLength: 2 };
   if (b.length >= 3 && b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) return { encoding: 'utf-8', bomLength: 3 };
+  // Ohne BOM: kein gueltiges UTF-8 -> Windows-1252 (ANSI-Exporte, z.B. MedCampus/Excel)
+  try { new TextDecoder('utf-8', { fatal: true }).decode(b); }
+  catch { return { encoding: 'windows-1252', bomLength: 0 }; }
   return { encoding: 'utf-8', bomLength: 0 };
+}
+
+let cp1252EncodeMap = null;
+
+function encodeCp1252(text) {
+  if (!cp1252EncodeMap) {
+    // Umkehrtabelle aus dem Browser-Decoder ableiten (inkl. 0x81/0x8D/0x8F/0x90/0x9D -> C1)
+    cp1252EncodeMap = new Map();
+    const dec = new TextDecoder('windows-1252');
+    for (let byte = 0x80; byte <= 0xFF; byte++) cp1252EncodeMap.set(dec.decode(new Uint8Array([byte])), byte);
+  }
+  const out = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) { out[i] = code; continue; }
+    const byte = cp1252EncodeMap.get(text[i]);
+    if (byte === undefined) throw new Error(`Zeichen "${text[i]}" ist in Windows-1252 nicht darstellbar`);
+    out[i] = byte;
+  }
+  return out;
 }
 
 function encodeText(text, encoding) {
   if (encoding === 'utf-8') return new TextEncoder().encode(text);
+  if (encoding === 'windows-1252') return encodeCp1252(text);
   // UTF-16 LE oder BE
   const buf = new ArrayBuffer(text.length * 2);
   const view = new DataView(buf);
@@ -503,6 +528,15 @@ function encodeText(text, encoding) {
 }
 
 // ================= FILE HANDLING =================
+
+function parseCsvRows(text, sep) {
+  const rows = Papa.parse(text, { delimiter: sep, header: false, skipEmptyLines: false })
+    .data.map(r => r.map(c => c == null ? '' : String(c)));
+  // Zeilenumbruch am Dateiende erzeugt sonst eine leere Zusatzzeile (wie Python csv.reader)
+  const last = rows[rows.length - 1];
+  if (rows.length > 1 && text.endsWith('\n') && last.length === 1 && last[0] === '') rows.pop();
+  return rows;
+}
 
 function parseOneFile(fobj) {
   if (fobj.type === 'xlsx') {
@@ -523,8 +557,7 @@ function parseOneFile(fobj) {
     if (firstLine.includes('\t')) detectedSep = '\t';
     else if (firstLine.includes(';')) detectedSep = ';';
     fobj.detectedSep = detectedSep;
-    const result = Papa.parse(text, { delimiter: detectedSep, header: false, skipEmptyLines: false });
-    const allRows = result.data.map(r => r.map(c => c == null ? '' : String(c)));
+    const allRows = parseCsvRows(text, detectedSep);
     if (allRows.length === 0) { fobj.parsed = { sheets: [{ name: fobj.name, headers: [], rows: [], metaRows: [] }] }; return; }
     const headerIdx = findHeaderRow(allRows);
     fobj.parsed = { sheets: [{ name: fobj.name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) }] };
@@ -543,7 +576,7 @@ async function addFiles(fileList) {
           const name = path.split('/').pop();
           const ftype = name.match(/\.(xlsx|xlsm)$/i) ? 'xlsx' : 'csv';
           const enc = detectEncoding(data);
-          const fobj = { name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
+          const fobj = { name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null, sourceZip: file.name };
           parseOneFile(fobj);
           fileQueue.push(fobj);
         }
@@ -900,9 +933,17 @@ async function processFile() {
       if (useCrlf && !csvStr.includes('\r\n')) csvStr = csvStr.replace(/\n/g, '\r\n');
       if (!useCrlf) csvStr = csvStr.replace(/\r\n/g, '\n');
       finalCsv += csvStr;
+      if (origDecoded.endsWith('\n')) finalCsv += lineEnd;
       const parts = [];
       if (fq.bomLength > 0) parts.push(new Uint8Array(fq.raw, 0, fq.bomLength));
-      parts.push(encodeText(finalCsv, fq.encoding));
+      // Reine ASCII-Eingabe (z.B. Pseudonym-Datei), Ausgabe mit Umlauten: Original-Kodierung
+      // nicht bestimmbar -> UTF-8 mit BOM, damit Excel die Umlaute korrekt anzeigt
+      else if (fq.encoding === 'utf-8' && rawBytes.every(byte => byte < 0x80) && /[^\x00-\x7F]/.test(finalCsv)) {
+        parts.push(new Uint8Array([0xEF, 0xBB, 0xBF]));
+        log('  Hinweis: Eingabe war reines ASCII \u2192 Ausgabe als UTF-8 mit BOM (Excel-kompatibel)', 'warn');
+      }
+      try { parts.push(encodeText(finalCsv, fq.encoding)); }
+      catch (e) { log(`FEHLER bei ${fq.name}: ${e.message}`, 'err'); btn.disabled = false; return; }
       blob = new Blob(parts, { type: 'text/csv;charset=utf-8' });
       const ext = fq.name.match(/\.[^.]+$/)?.[0] || '.csv';
       outName = fq.name.replace(/\.[^.]+$/, suffix + ext);
@@ -922,7 +963,8 @@ async function processFile() {
     <div class="stat"><div class="stat-num">${grandSheetsProcessed}</div><div class="stat-label">Sheets</div></div>
     <div class="stat"><div class="stat-num">${grandTotalCells}</div><div class="stat-label">Zellen</div></div>
     <div class="stat"><div class="stat-num">${grandSheetsSkipped}</div><div class="stat-label">Uebersprungen</div></div>`;
-  const dlName = batchResults.length === 1 ? batchResults[0].name : `batch_${mode}_${batchResults.length}dateien.zip`;
+  batchZipName = makeZipName(fileQueue, mode);
+  const dlName = batchResults.length === 1 ? batchResults[0].name : batchZipName;
   document.getElementById('dlName').textContent = dlName;
 
   const cc = document.getElementById('compareCard');
@@ -939,6 +981,22 @@ async function processFile() {
   setTimeout(() => { pb.classList.remove('active'); pt.classList.remove('active'); }, 1000);
 }
 
+// ZIP-Name: Quell-ZIP bzw. gemeinsamer Dateinamen-Anfang + Modus + Anzahl + Datum
+function makeZipName(files, mode) {
+  const suffix = mode === 'encrypt' ? '_pseudo' : '_restored';
+  if (files[0].sourceZip && files.every(f => f.sourceZip === files[0].sourceZip)) {
+    return files[0].sourceZip.replace(/\.zip$/i, '') + suffix + '.zip';
+  }
+  const stems = files.map(f => f.name.replace(/\.[^.]+$/, ''));
+  let prefix = stems.reduce((p, s) => { let i = 0; while (i < p.length && p[i] === s[i]) i++; return p.slice(0, i); });
+  if (prefix !== stems[0]) prefix = prefix.replace(/[^_\-. ]*$/, '');  // nicht mitten im Wort abschneiden
+  prefix = prefix.replace(/[_\-. ]+$/, '');
+  if (prefix.length < 3) prefix = 'Batch';
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return `${prefix}${suffix}_${files.length}Dateien_${date}.zip`;
+}
+
 async function downloadResult() {
   if (batchResults.length === 0) return;
   if (batchResults.length === 1) {
@@ -953,7 +1011,7 @@ async function downloadResult() {
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(zipBlob);
-    a.download = `batch_${currentMode}_${batchResults.length}dateien.zip`;
+    a.download = batchZipName;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -1031,8 +1089,7 @@ document.getElementById('sepSelect').addEventListener('change', () => {
     const selVal = document.getElementById('sepSelect').value;
     const sep = selVal === '\\t' ? '\t' : selVal;
     fobj.detectedSep = sep;
-    const result = Papa.parse(text, { delimiter: sep, header: false, skipEmptyLines: false });
-    const allRows = result.data.map(r => r.map(c => c == null ? '' : String(c)));
+    const allRows = parseCsvRows(text, sep);
     const headerIdx = findHeaderRow(allRows);
     fobj.parsed = { sheets: [{ name: fobj.name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) }] };
     renderPreview();

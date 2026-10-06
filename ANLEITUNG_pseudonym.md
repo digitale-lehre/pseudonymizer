@@ -114,6 +114,8 @@ ZIP-Archiv als Eingabe (entpackt automatisch CSV/XLSX/XLSM):
 python pseudonym.py encrypt archiv.zip --secret "MeinSecret"
 ```
 
+Ergebnisse aus einem ZIP werden neben dem ZIP abgelegt (bzw. in `--output-dir`). Mit `--zip` heisst das Archiv dann `<ZIP-Name>_pseudo.zip` bzw. `_restored.zip`.
+
 Alle CSVs verschluesseln und in einem Ordner ablegen:
 
 ```bash
@@ -129,9 +131,11 @@ python pseudonym.py encrypt *.csv --secret "MeinSecret" --zip
 | Option | Beschreibung |
 |---|---|
 | `--output-dir DIR` | Ausgabeverzeichnis fuer alle Ergebnisdateien |
-| `--zip` | Alle Ergebnisdateien in ein ZIP-Archiv buendeln |
+| `--zip` | Alle Ergebnisdateien in ein ZIP-Archiv buendeln (Name siehe unten) |
 
 **Hinweis:** `--output`/`-o` funktioniert nur bei einzelnen Dateien. Fuer Batch-Verarbeitung `--output-dir` verwenden.
+
+Name des Archivs: gemeinsamer Anfang der Dateinamen, Modus, Anzahl und Datum, z.B. `Teilnehmerliste_pseudo_9Dateien_2026-10-06.zip` (ohne gemeinsamen Anfang: `Batch_pseudo_...`).
 
 
 ## Zusaetzliche Spalten verschluesseln
