@@ -889,7 +889,9 @@ def make_zip_name(input_files: list, mode: str) -> str:
     if len(sources) == 1 and None not in sources:
         return f"{sources.pop().stem}{suffix}.zip"
     stems = [Path(f).stem for f in input_files]
-    prefix = os.path.commonprefix(stems)
+    # Zeichenweise gemeinsamer Anfang (os.path.commonprefix ist ab Python 3.15 veraltet)
+    low, high = min(stems), max(stems)
+    prefix = low[:next((i for i, ch in enumerate(low) if ch != high[i]), len(low))]
     if prefix != stems[0]:
         prefix = re.sub(r"[^_\-. ]*$", "", prefix)  # nicht mitten im Wort abschneiden
     prefix = re.sub(r"[_\-. ]+$", "", prefix)
