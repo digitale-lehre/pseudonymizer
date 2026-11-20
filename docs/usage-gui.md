@@ -4,7 +4,7 @@
 
 `pseudonym_gui.html` doppelklicken oder im Browser oeffnen. Keine Installation noetig.
 
-**Voraussetzung:** Moderner Browser (Chrome, Firefox, Edge, Safari) und eine Internetverbindung beim Start. Die Seite laedt zwei Bibliotheken (SheetJS, JSZip) aus dem Netz. Erscheint oben der Hinweis "Die Programmbibliotheken konnten nicht geladen werden", fehlt die Verbindung.
+**Voraussetzung:** Moderner Browser (Chrome, Firefox, Edge, Safari). Eine Internetverbindung ist nicht noetig: Die Datei enthaelt alles, was die Seite braucht, auch die beiden Bibliotheken SheetJS und JSZip.
 
 
 ## Bedienung
@@ -139,7 +139,7 @@ Das Fragezeichen neben den Modus-Schaltflaechen listet alle Spaltennamen, die di
 
 - **Alle Daten bleiben lokal.** Nichts wird hochgeladen oder an Server gesendet
 - Die Seite kann technisch keine Daten senden: Eine Sicherheitsrichtlinie (Content Security Policy) verbietet ihr alle Netzverbindungen, Formulare und fremde Bilder
-- Die einzigen Zugriffe ins Netz sind die beiden Bibliotheken beim Start. Der Browser laedt sie nur, wenn ihre Pruefsumme stimmt (SheetJS 0.20.3 von cdn.sheetjs.com, JSZip 3.10.1 von cdnjs.cloudflare.com)
+- Die Seite baut keine Verbindung ins Netz auf, auch nicht beim Start. Die Bibliotheken SheetJS 0.20.3 und JSZip 3.10.2 sind in die Datei eingebaut. Die Seite funktioniert deshalb auch ohne Internet
 - Das Secret existiert nur im Arbeitsspeicher. Der Verlauf speichert keine Secrets und keine Dateiinhalte
 
 

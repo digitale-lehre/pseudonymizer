@@ -107,13 +107,11 @@ Verweise auf fehlende Zeichnungen repariert die CLI selbst. Sie entfernt nur die
 **Ursache:** Die Datei ist in Excel geoeffnet oder schreibgeschuetzt. Excel schliessen und erneut versuchen.
 
 
-### Browser-GUI: "Die Programmbibliotheken konnten nicht geladen werden"
+### Browser-GUI: "Diese Datei ist unvollstaendig"
 
-**Ursachen und Loesungen:**
+**Ursache:** Die Seite enthaelt ihre Programmbibliotheken am Ende der Datei. Fehlen sie, wurde `pseudonym_gui.html` nicht vollstaendig heruntergeladen oder beim Kopieren abgeschnitten. Die vollstaendige Datei ist rund 1,1 MB gross.
 
-1. **Keine Internetverbindung:** Die Seite laedt beim Start zwei Bibliotheken aus dem Netz. Verbindung pruefen und die Seite neu laden.
-2. **Netzfilter:** Die Adressen `cdn.sheetjs.com` und `cdnjs.cloudflare.com` muessen erreichbar sein.
-3. **Pruefsumme stimmt nicht:** Der Browser laedt eine Bibliothek nur, wenn sie unveraendert ist. In diesem Fall die Seite nicht verwenden und die Python CLI nutzen.
+**Loesung:** Die Datei neu herunterladen. Eine Internetverbindung braucht die Seite selbst nicht.
 
 
 ### Browser-GUI: Datei erscheint nicht in der Liste

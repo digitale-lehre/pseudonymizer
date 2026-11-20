@@ -9,6 +9,10 @@ import pseudonym as ps
 
 ROOT = Path(__file__).parent.parent
 HTML = (ROOT / "pseudonym_gui.html").read_text(encoding="utf-8")
+LIB_BLOCK = re.compile(r'<script id="(lib-[a-z]+)"([^>]*)>.*?</script>', re.S)
+OWN_HTML = LIB_BLOCK.sub("", HTML)   # eigener Code, ohne die eingebetteten Bibliotheken
+DOCS = ["README.md", "ANLEITUNG_pseudonym.md", "CLAUDE.md"] + sorted(
+    str(p.relative_to(ROOT)).replace("\\", "/") for p in (ROOT / "docs").glob("*.md"))
 
 
 def gui_aliases():
@@ -50,13 +54,43 @@ def test_version_is_the_same_everywhere():
     assert f"v{ps.__version__}" in (ROOT / "docs" / "installation.md").read_text(encoding="utf-8")
 
 
-def test_external_scripts_are_pinned_with_integrity():
-    tags = re.findall(r"<script[^>]*\bsrc=[^>]*>", HTML)
-    assert tags, "keine externen Skripte gefunden"
-    for tag in tags:
-        assert re.search(r'integrity="sha(384|512)-[A-Za-z0-9+/=]+"', tag), tag
-        assert 'crossorigin="anonymous"' in tag, tag
-        assert re.search(r"\d+\.\d+\.\d+", tag), tag
+def test_gui_loads_nothing_from_the_network():
+    """Die Seite ist eigenstaendig: keine fremden Skripte, Stylesheets, Bilder oder Schriften."""
+    assert len(LIB_BLOCK.findall(HTML)) == 2
+    for pattern in (r"<script[^>]*\bsrc\s*=", r"<link\b", r"<img[^>]*\bsrc\s*=\s*[\"']?https?:",
+                    r"@import", r"url\(\s*[\"']?https?:", r"\bfetch\(", r"XMLHttpRequest", r"sendBeacon"):
+        assert not re.search(pattern, OWN_HTML, re.I), pattern
+
+
+def test_content_security_policy_allows_no_foreign_address():
+    csp = re.search(r'http-equiv="Content-Security-Policy" content="([^"]*)"', HTML).group(1)
+    assert "http" not in csp and "*" not in csp
+    rules = dict(part.strip().split(" ", 1) for part in csp.split(";"))
+    assert rules["default-src"] == "'none'"
+    assert rules["script-src"] == "'unsafe-inline'"
+    assert rules["connect-src"] == "'none'"
+
+
+@pytest.mark.parametrize("doc", DOCS)
+def test_docs_name_the_embedded_library_versions(doc):
+    versions = {key: re.search(r'data-version="([^"]+)"', attrs).group(1) for key, attrs in LIB_BLOCK.findall(HTML)}
+    text = (ROOT / doc).read_text(encoding="utf-8")
+    for name, key in (("SheetJS", "lib-xlsx"), ("JSZip", "lib-jszip")):
+        for found in re.findall(name + r" (\d+\.\d+\.\d+)", text):
+            assert found == versions[key], f"{doc} nennt {name} {found}, eingebettet ist {versions[key]}"
+
+
+DEVELOPER_DOCS = ("CLAUDE.md", "docs/development.md")   # nennen die Quellen fuer tools/gui_libs.py
+
+
+@pytest.mark.parametrize("doc", DOCS)
+def test_docs_do_not_send_users_to_the_network(doc):
+    text = (ROOT / doc).read_text(encoding="utf-8")
+    outdated = ["PSEUDO_GUI_LIBS", "Internetverbindung beim Start", "integrity"]
+    if doc not in DEVELOPER_DOCS:
+        outdated += ["cdn.sheetjs.com", "cdnjs.cloudflare.com"]
+    for old in outdated:
+        assert old not in text, f"{doc}: {old}"
 
 
 def test_gui_has_no_unescaped_sheet_name():
@@ -78,7 +112,9 @@ def test_sources_contain_no_invisible_whitespace():
     """Unsichtbare Leerzeichen (geschuetztes Leerzeichen, Zeilentrenner U+2028 ...) gehoeren als
     Escape-Folge in den Code. Als echtes Zeichen sind sie nicht zu sehen, und U+2028 bricht JavaScript."""
     invisible = [0x00A0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF] + list(range(0x2000, 0x200C))
-    for name in ("pseudonym.py", "pseudonym_gui.html"):
-        text = (ROOT / name).read_text(encoding="utf-8")
+    sources = {"pseudonym.py": (ROOT / "pseudonym.py").read_text(encoding="utf-8"),
+               "pseudonym_gui.html": OWN_HTML,
+               "tools/gui_libs.py": (ROOT / "tools" / "gui_libs.py").read_text(encoding="utf-8")}
+    for name, text in sources.items():
         found = sorted({f"U+{cp:04X}" for cp in invisible if chr(cp) in text})
         assert found == [], f"{name}: {found}"

@@ -12,10 +12,11 @@ Two implementations exist — a Python CLI (`pseudonym.py`) and a standalone bro
 
 ```
 pseudonym.py            Python CLI (requires cryptography, openpyxl; see requirements.txt)
-pseudonym_gui.html      Single-file browser app (Web Crypto API + SheetJS + JSZip via CDN with SRI)
+pseudonym_gui.html      Single-file browser app (Web Crypto API; SheetJS and JSZip are embedded, no network access)
 ANLEITUNG_pseudonym.md  German-language user documentation
 tests/                  pytest suite: test_core, test_cli, test_batch, test_consistency, test_gui_parity
 tests/gui_harness.js    Runs the GUI's inline script in Node so it can be compared with the CLI
+tools/gui_libs.py       Checks the embedded libraries against the vendors' files, finds newer versions, embeds them
 docs/                   Wiki-style documentation (column-reference, cryptography, troubleshooting, etc.)
 ```
 
@@ -112,12 +113,12 @@ python pseudonym.py encrypt "*.csv" --secret "test" --zip
 # Encrypt with extra columns
 python pseudonym.py encrypt input.csv --secret "test" --extra-cols "Kommentar,Notiz"
 
-# Run all tests (new test files are picked up automatically)
+# Run all tests (new test files are picked up automatically). The GUI parity tests
+# are skipped without Node.js; they take the libraries from the HTML file itself
 python -m pytest tests -v
 
-# Include the GUI parity tests: needs Node.js and the two GUI libraries in a folder
-# outside the project (download commands: docs/development.md)
-PSEUDO_GUI_LIBS=~/pseudo-libs python -m pytest tests -v
+# Embedded GUI libraries: verify against the vendors' files and look for newer versions
+python tools/gui_libs.py check
 ```
 
 `--secret "test"` is fine for throwaway test data. With a real secret, omit `--secret`: the CLI then prompts without echo (twice on encrypt). `PSEUDONYM_SECRET` works for scripts.
@@ -159,8 +160,8 @@ Both checks are automated: `tests/test_core.py::test_acceptance_vector` (Python)
 
 ### HTML/JS (pseudonym_gui.html)
 - Single self-contained HTML file — all CSS and JS inline
-- External libraries: JSZip from cdnjs.cloudflare.com, SheetJS from cdn.sheetjs.com (cdnjs only carries SheetJS 0.18.5, which has known vulnerabilities). Every `<script src>` needs a pinned version, `integrity` (SHA-512) and `crossorigin="anonymous"`
-- A Content-Security-Policy `<meta>` blocks all network connections, forms and foreign images. A new script host must be added there
+- No network access at all. SheetJS and JSZip are embedded as unmodified copies of the vendors' files, each in its own `<script id="lib-...">` block at the end of the file with `data-version` and `data-sha512`. Never edit these blocks by hand and never add a `<script src>`: use `python tools/gui_libs.py update`. `check` compares the embedded code with the vendor's file (SheetJS from cdn.sheetjs.com, because other CDNs only carry the vulnerable version 0.18.5; JSZip from cdnjs.cloudflare.com)
+- A Content-Security-Policy `<meta>` blocks foreign scripts, all network connections, forms and foreign images. It names no foreign host; keep it that way
 - Everything that comes from a file (headers, sheet names, cell values, file names) goes into the page through `esc()` only
 - CSV parsing uses the built-in `scanCsv()` (same algorithm as `scan_csv()` in Python), not a CSV library
 - XLSX: `processXlsx()` replaces cells in the loaded workbook; it does not rebuild sheets from arrays (that turned every date and number into text)
@@ -194,7 +195,9 @@ Both checks are automated: `tests/test_core.py::test_acceptance_vector` (Python)
 3. Update all documentation files (see alias checklist above)
 
 ### Releasing a new version
-The version number lives in three places: `__version__` in `pseudonym.py`, the header line in `pseudonym_gui.html`, and `docs/installation.md`. `tests/test_consistency.py` checks that they agree.
+1. **Check the embedded libraries first — required for every release:** run `python tools/gui_libs.py check`. If it reports a newer version of SheetJS or JSZip, embed it with `python tools/gui_libs.py update`, adjust the versions named in the docs (the tests list every place), run all tests, open the page in a browser, and name the update in the release notes. If an update is deliberately skipped, say why in the release notes.
+2. The version number lives in three places: `__version__` in `pseudonym.py`, the header line in `pseudonym_gui.html`, and `docs/installation.md`. `tests/test_consistency.py` checks that they agree.
+3. Attach `pseudonym.py` and `pseudonym_gui.html` to the GitHub release.
 
 ### Header Row Auto-Detection
 Both implementations take the row with the most recognized columns among the first 20 rows (identity columns, `Name` and extra columns all count; ties: more filled cells, then the earlier row). Files with metadata rows before the header (e.g., MLW exports) are supported. Metadata rows are preserved unchanged in output — also when they contain a name.

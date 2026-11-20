@@ -1,12 +1,10 @@
 """Gleichlauf GUI <-> CLI: Der JavaScript-Teil von pseudonym_gui.html laeuft in Node
 (tests/gui_harness.js) und muss dieselben Bytes liefern wie pseudonym.py.
 
-Voraussetzung: Node.js und die beiden Bibliotheken der GUI in einem Ordner, den die
-Umgebungsvariable PSEUDO_GUI_LIBS nennt (siehe docs/development.md). Sonst werden
-diese Tests uebersprungen. Alle Testdaten sind erfunden."""
+Voraussetzung: Node.js. Ohne Node.js werden diese Tests uebersprungen. Die Bibliotheken
+(SheetJS, JSZip) nimmt der Testlauf aus der HTML-Datei selbst. Alle Testdaten sind erfunden."""
 import datetime
 import json
-import os
 import random
 import shutil
 import subprocess
@@ -19,11 +17,8 @@ from openpyxl import Workbook, load_workbook
 import pseudonym as ps
 
 ROOT = Path(__file__).parent.parent
-LIBS = os.environ.get("PSEUDO_GUI_LIBS")
 NODE = shutil.which("node")
-pytestmark = pytest.mark.skipif(
-    not (NODE and LIBS and (Path(LIBS) / "xlsx.full.min.js").exists() and (Path(LIBS) / "jszip.min.js").exists()),
-    reason="Node.js oder PSEUDO_GUI_LIBS fehlt")
+pytestmark = pytest.mark.skipif(not NODE, reason="Node.js fehlt")
 
 SECRET = "testSecret123"
 
@@ -33,7 +28,7 @@ def gui(tmp_path, jobs=(), evals=()):
     spec = tmp_path / "auftrag.json"
     spec.write_text(json.dumps({"jobs": list(jobs), "eval": list(evals)}), encoding="utf-8")
     proc = subprocess.run([NODE, str(ROOT / "tests" / "gui_harness.js"), str(ROOT / "pseudonym_gui.html"),
-                           LIBS, str(spec)], capture_output=True, text=True, encoding="utf-8", timeout=600)
+                           str(spec)], capture_output=True, text=True, encoding="utf-8", timeout=600)
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)
 

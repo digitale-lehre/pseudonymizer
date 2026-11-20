@@ -26,7 +26,7 @@ Beide Varianten sind **kryptografisch kompatibel** — eine mit Python verschlue
 
 ### Browser-GUI (kein Install)
 
-`pseudonym_gui.html` doppelklicken — fertig. Alles laeuft lokal im Browser, keine Daten verlassen den Rechner.
+`pseudonym_gui.html` doppelklicken — fertig. Alles laeuft lokal im Browser, keine Daten verlassen den Rechner. Die Seite braucht keine Internetverbindung.
 
 Mehr dazu: [Browser-GUI Anleitung](docs/usage-gui.md)
 
@@ -128,13 +128,24 @@ Vollstaendige Liste: [Spalten-Referenz](docs/column-reference.md)
 
 - **AES-256-CBC** mit PBKDF2-Schluesselableitung (100.000 Iterationen)
 - **Deterministisch:** gleicher Input + gleicher Secret = gleiches Pseudonym
-- **Lokal:** alle Verarbeitung geschieht auf dem eigenen Rechner. Die Browser-GUI kann technisch keine Daten senden (Content Security Policy) und laedt ihre zwei Bibliotheken nur mit passender Pruefsumme
+- **Lokal:** alle Verarbeitung geschieht auf dem eigenen Rechner. Die Browser-GUI baut keine Verbindung ins Netz auf: Ihre zwei Bibliotheken sind in die Datei eingebaut, und eine Sicherheitsrichtlinie (Content Security Policy) verbietet ihr jede Verbindung
 - **Secret sicher aufbewahren** — ohne Secret keine Wiederherstellung moeglich
 - **Falsches Secret wird erkannt:** Laesst sich kein Wert entschluesseln, entsteht keine Ausgabedatei
 - **Keine erkannte Spalte, keine Ausgabe:** Eine Datei ohne erkannte Spalten wird nicht unveraendert als `_pseudo` ausgegeben
 - **Anonymisieren ist keine Garantie:** Das Tool leert nur erkannte Spalten. Die uebrigen Spalten koennen Personen weiter erkennbar machen
 
 Details: [Kryptographie-Spezifikation](docs/cryptography.md)
+
+## Enthaltene Bibliotheken
+
+`pseudonym_gui.html` enthaelt zwei Bibliotheken als unveraenderte Kopie der Herstellerdateien:
+
+| Bibliothek | Version | Zweck | Lizenz |
+|---|---|---|---|
+| SheetJS Community Edition | 0.20.3 | Excel-Dateien lesen und schreiben | Apache License 2.0 |
+| JSZip (enthaelt pako) | 3.10.2 | ZIP-Dateien lesen und schreiben | MIT License |
+
+Die Lizenztexte stehen in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). `python tools/gui_libs.py check` prueft, ob die Kopien unveraendert sind und ob es neuere Versionen gibt.
 
 ## Dokumentation
 
