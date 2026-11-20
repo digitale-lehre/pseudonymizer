@@ -36,7 +36,7 @@ try:
 except ImportError:  # kein Abbruch mit Traceback: missing_packages() meldet das Paket verstaendlich
     Cipher = algorithms = modes = sym_padding = None
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 
 
 class PseudoError(Exception):

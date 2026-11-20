@@ -1,0 +1,24 @@
+name: Bibliotheken
+
+# Prueft die in pseudonym_gui.html eingebetteten Bibliotheken (SheetJS, JSZip):
+# Sind sie unveraendert gegenueber den Dateien der Hersteller, und gibt es neuere Versionen?
+# Laeuft bei jedem Pull Request und bei jeder Veroeffentlichung. Rot heisst: vor der
+# naechsten Version "python tools/gui_libs.py update" ausfuehren (siehe docs/development.md).
+on:
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python tools/gui_libs.py check

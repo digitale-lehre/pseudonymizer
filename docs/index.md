@@ -41,7 +41,9 @@ pseudonymizer/
   ANLEITUNG_pseudonym.md  Schritt-fuer-Schritt-Anleitung
   README.md               Projekt-Uebersicht
   CLAUDE.md               Entwickler-Kontext
+  THIRD_PARTY_LICENSES.md Lizenzen der eingebetteten Bibliotheken
   requirements.txt        Python-Abhaengigkeiten (getestete Versionen)
+  tools/                  Eingebettete Bibliotheken pruefen und aktualisieren
   tests/                  Automatische Tests (pytest; GUI-Gleichlauf in Node)
   docs/                   Wiki (diese Seiten)
 ```

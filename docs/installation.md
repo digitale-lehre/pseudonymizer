@@ -10,7 +10,7 @@ Die Browser-GUI (`pseudonym_gui.html`) benoetigt **keine Installation**. Einfach
 
 **Voraussetzungen:** Ein moderner Browser (Chrome, Firefox, Edge, Safari). Alle gaengigen Versionen der letzten Jahre werden unterstuetzt.
 
-**Hinweis:** Die GUI laedt beim Start zwei JavaScript-Bibliotheken aus dem Netz: SheetJS 0.20.3 (cdn.sheetjs.com) und JSZip 3.10.1 (cdnjs.cloudflare.com). Dafuer ist eine Internetverbindung noetig. Der Browser prueft bei beiden die Pruefsumme und laedt keine veraenderte Datei. Ihre Daten bleiben auf dem Rechner: Die Seite kann technisch keine Daten senden.
+**Hinweis:** Die GUI braucht keine Internetverbindung. Die beiden JavaScript-Bibliotheken SheetJS 0.20.3 und JSZip 3.10.2 sind in die Datei eingebaut. Ihre Daten bleiben auf dem Rechner: Die Seite baut keine Verbindung ins Netz auf.
 
 
 ## Python CLI
@@ -62,7 +62,7 @@ pip install -r requirements.txt
 python pseudonym.py --version
 ```
 
-Erwartete Ausgabe: `pseudonym.py 0.7.0` (aktuelle Version: v0.7.0)
+Erwartete Ausgabe: `pseudonym.py 0.7.1` (aktuelle Version: v0.7.1)
 
 Fehlt ein Paket, steht darunter eine Zeile `ACHTUNG: Python-Paket ... fehlt` mit dem passenden Installationsbefehl. Das passiert auch, wenn mehrere Python-Versionen installiert sind und die Pakete in einer anderen liegen.
 

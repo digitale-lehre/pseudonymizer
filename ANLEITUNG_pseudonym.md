@@ -11,7 +11,7 @@ Der pseudonymizer pseudonymisiert, de-pseudonymisiert und anonymisiert personenb
 
 ## Variante 1: Browser-GUI (empfohlen fuer Einsteiger)
 
-Kein Install noetig. Einfach `pseudonym_gui.html` im Browser oeffnen (Doppelklick).
+Kein Install noetig. Einfach `pseudonym_gui.html` im Browser oeffnen (Doppelklick). Eine Internetverbindung braucht die Seite nicht.
 
 1. **Datei waehlen:** CSV, TSV, XLSX oder XLSM per Drag & Drop oder Dateiauswahl laden (auch mehrere oder ZIP)
 2. **Vorschau pruefen:** Die erkannten Spalten sind blau. Fehlt eine Spalte, auf ihre Ueberschrift klicken
@@ -19,7 +19,7 @@ Kein Install noetig. Einfach `pseudonym_gui.html` im Browser oeffnen (Doppelklic
 4. **Secret eingeben:** Beliebiges Passwort (muss zum Entschluesseln identisch sein; entfaellt beim Anonymisieren)
 5. **Starten:** Ergebnis wird zum Download angeboten
 
-Alle Daten werden **lokal im Browser** verarbeitet — nichts wird hochgeladen oder uebertragen.
+Alle Daten werden **lokal im Browser** verarbeitet — nichts wird hochgeladen oder uebertragen. Die Seite baut keine Verbindung ins Netz auf.
 
 Detaillierte Anleitung: [docs/usage-gui.md](docs/usage-gui.md)
 

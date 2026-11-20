@@ -25,11 +25,6 @@ jobs:
         with:
           node-version: "22"
       - run: pip install -r requirements.txt pytest
-      # Bibliotheken der GUI fuer die Gleichlauf-Tests. tests/gui_harness.js laedt sie nur,
-      # wenn ihre Pruefsumme zu den integrity-Angaben in pseudonym_gui.html passt.
-      - run: |
-          mkdir -p "$RUNNER_TEMP/libs"
-          curl -fsSL -o "$RUNNER_TEMP/libs/xlsx.full.min.js" https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
-          curl -fsSL -o "$RUNNER_TEMP/libs/jszip.min.js" https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
-          echo "PSEUDO_GUI_LIBS=$RUNNER_TEMP/libs" >> "$GITHUB_ENV"
+      # Node.js ist fuer die Gleichlauf-Tests da: Sie fuehren den Code der GUI samt den
+      # eingebetteten Bibliotheken aus. Der Testlauf laedt nichts aus dem Netz nach.
       - run: python -m pytest tests -v

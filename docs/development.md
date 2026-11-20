@@ -6,7 +6,7 @@ Der pseudonymizer besteht aus zwei unabhaengigen Implementierungen, die identisc
 
 ```
 pseudonym.py            Python CLI (requires cryptography, openpyxl)
-pseudonym_gui.html      Browser-GUI (Web Crypto API + SheetJS + JSZip via CDN, mit Pruefsumme)
+pseudonym_gui.html      Browser-GUI (Web Crypto API; SheetJS und JSZip sind eingebettet)
 ```
 
 Beide muessen **immer** die gleichen Ergebnisse fuer gleiche Eingaben liefern.
@@ -55,8 +55,8 @@ Einzelne HTML-Datei mit eingebettetem CSS und JavaScript.
 
 **Konventionen:**
 - Alles in einer Datei, kein Build-Schritt
-- Externe Bibliotheken nur mit fester Version, `integrity` (SHA-512) und `crossorigin="anonymous"`: JSZip von cdnjs.cloudflare.com, SheetJS von cdn.sheetjs.com (cdnjs fuehrt nur die veraltete Version 0.18.5 mit bekannten Schwachstellen)
-- Content Security Policy im `<head>`: keine Netzverbindungen, keine Formulare, keine fremden Bilder. Wer eine weitere Quelle braucht, muss sie dort eintragen
+- Die Seite laedt nichts aus dem Netz. SheetJS und JSZip stehen als unveraenderte Kopie am Ende der Datei (siehe [Bibliotheken der GUI](#bibliotheken-der-gui)). Kein `<script src>`, kein fremdes Stylesheet, keine fremde Schrift
+- Content Security Policy im `<head>`: keine fremden Skripte, keine Netzverbindungen, keine Formulare, keine fremden Bilder. Sie nennt keine einzige fremde Adresse, und das soll so bleiben
 - Alles, was aus Dateien stammt (Spaltennamen, Blattnamen, Zellwerte, Dateinamen), geht nur ueber `esc()` in die Seite
 - Vanilla JS, kein Framework
 - localStorage fuer Dark Mode und Verlauf (nie fuer Secrets)
@@ -76,23 +76,21 @@ python -m pytest tests -v
 | `tests/test_core.py` | Abnahmewert, Spaltenerkennung, CSV (byte-identische Roundtrips, alle Kodierungen), XLSX, Anonymisieren |
 | `tests/test_cli.py` | Kommandozeile: Stapel, Ordner, Platzhalter, ZIP, Secret-Abfrage, Fehlermeldungen, fehlende Python-Pakete |
 | `tests/test_batch.py` | Aeltere Tests zu `process_file()`, ZIP-Ein-/Ausgabe, Name-Spalte, Windows-1252 |
-| `tests/test_consistency.py` | Alias-Listen in CLI und GUI gleich, jeder Alias in der Doku, Versionsnummer, `integrity` an den Skripten |
+| `tests/test_consistency.py` | Alias-Listen in CLI und GUI gleich, jeder Alias in der Doku, Versionsnummer, keine Netzadressen in der GUI |
+| `tests/test_gui_libs.py` | Eingebettete Bibliotheken passen zu ihrer Pruefsumme; `tools/gui_libs.py` (Pruefen und Aktualisieren) |
 | `tests/test_gui_parity.py` | Gleichlauf: Der JavaScript-Teil der GUI laeuft in Node und muss dieselben Bytes liefern wie die CLI |
 
 Alle Testdaten sind erfunden. Echte Exportdateien gehoeren nicht in die Tests.
 
 ### Gleichlauf-Tests der GUI
 
-`tests/test_gui_parity.py` braucht Node.js und die beiden Bibliotheken der GUI in einem Ordner ausserhalb des Projekts. Ohne sie werden diese Tests uebersprungen.
+`tests/test_gui_parity.py` braucht nur Node.js. Ohne Node.js werden diese Tests uebersprungen.
 
 ```bash
-mkdir ~/pseudo-libs && cd ~/pseudo-libs
-curl -O https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
-curl -O https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
-PSEUDO_GUI_LIBS=~/pseudo-libs python -m pytest tests/test_gui_parity.py -v
+python -m pytest tests/test_gui_parity.py -v
 ```
 
-`tests/gui_harness.js` laedt die Bibliotheken nur, wenn ihre Pruefsumme zu den `integrity`-Angaben in `pseudonym_gui.html` passt.
+`tests/gui_harness.js` fuehrt den Code aus `pseudonym_gui.html` aus: zuerst den eigenen Teil, dann die eingebetteten Bibliotheken, wie der Browser. Passt eine Bibliothek nicht zu ihrer Pruefsumme, bricht der Lauf ab.
 
 Die Bedienung im Browser (Klicks, Drag & Drop, Download, Sicherheitsrichtlinie) pruefen diese Tests nicht. Nach Aenderungen an der Oberflaeche die Seite im Browser oeffnen und mit einer erfundenen Datei durchgehen.
 
@@ -136,13 +134,28 @@ Die Browser-GUI muss denselben Token fuer "Mueller" mit Secret "testSecret123" e
 
 ### Version erhoehen
 
-Die Versionsnummer steht an drei Stellen: `__version__` in `pseudonym.py`, die Kopfzeile in `pseudonym_gui.html` und `docs/installation.md`. `tests/test_consistency.py` prueft, dass sie gleich sind.
+1. **Bibliotheken pruefen:** `python tools/gui_libs.py check` ausfuehren. Das gehoert zu jeder Veroeffentlichung. Meldet es eine neuere Version, diese einbetten (naechster Abschnitt) oder in der Veroeffentlichungsnotiz begruenden, warum nicht
+2. Die Versionsnummer an drei Stellen aendern: `__version__` in `pseudonym.py`, die Kopfzeile in `pseudonym_gui.html` und `docs/installation.md`. `tests/test_consistency.py` prueft, dass sie gleich sind
+3. Tests ausfuehren. Auf GitHub laufen sie bei jedem Push, die Bibliothekspruefung bei jedem Pull Request und bei jeder Veroeffentlichung
+4. An die Veroeffentlichung `pseudonym.py` und `pseudonym_gui.html` anhaengen
 
-### Bibliothek der GUI aktualisieren
+### Bibliotheken der GUI
 
-1. Neue Datei herunterladen und die Pruefsumme berechnen: `openssl dgst -sha512 -binary datei.js | openssl base64 -A`
-2. `src` und `integrity` im `<script>`-Tag aendern
-3. Gleichlauf-Tests mit der neuen Datei ausfuehren und die Seite im Browser pruefen
+SheetJS und JSZip stehen als unveraenderte Kopie der Herstellerdateien am Ende von `pseudonym_gui.html`. Jede hat ein eigenes `<script>`-Element mit Version und Pruefsumme (`data-version`, `data-sha512`). Diese Bloecke nie von Hand aendern.
+
+```bash
+python tools/gui_libs.py check     # Pruefsummen gegen die Herstellerdateien pruefen, neuere Versionen suchen
+python tools/gui_libs.py update    # die neueste Version einbetten
+```
+
+`check` laedt die Datei des Herstellers fuer die eingebettete Version und vergleicht die Pruefsumme. So bleibt nachpruefbar, dass der eingebettete Code das Original ist. Die Quellen stehen in `tools/gui_libs.py`: SheetJS kommt von cdn.sheetjs.com (andere Verteiler fuehren nur die veraltete Version 0.18.5 mit bekannten Schwachstellen), JSZip von cdnjs.cloudflare.com.
+
+Nach `update`:
+
+1. Versionsangaben in der Doku anpassen. `python -m pytest tests` nennt jede Stelle
+2. Alle Tests ausfuehren. Die Gleichlauf-Tests nutzen die eingebettete Fassung
+3. Die Seite im Browser oeffnen und mit einer erfundenen Excel-Datei und einem ZIP durchgehen
+4. Pruefen, ob sich die Lizenz geaendert hat, und `THIRD_PARTY_LICENSES.md` anpassen
 
 ### Kryptographie aendern
 
@@ -175,11 +188,13 @@ pseudonymizer/
   ANLEITUNG_pseudonym.md    Benutzer-Anleitung
   CLAUDE.md                 Entwickler-Kontext (fuer AI-Assistenten)
   .gitignore                Ignoriert Datendateien und Build-Artefakte
+  THIRD_PARTY_LICENSES.md   Lizenzen der eingebetteten Bibliotheken
   requirements.txt          Python-Abhaengigkeiten (getestete Versionen)
-  .github/workflows/        Automatischer Testlauf auf GitHub
+  tools/gui_libs.py         Eingebettete Bibliotheken pruefen und aktualisieren
+  .github/workflows/        Automatischer Testlauf und Bibliothekspruefung auf GitHub
   tests/                    Automatische Tests (siehe oben)
     conftest.py             Raeumt entpackte ZIP-Inhalte nach jedem Test auf
-    test_core.py, test_cli.py, test_batch.py, test_consistency.py, test_gui_parity.py
+    test_core.py, test_cli.py, test_batch.py, test_consistency.py, test_gui_parity.py, test_gui_libs.py
     gui_harness.js          Fuehrt den JavaScript-Teil der GUI in Node aus
   docs/                     Wiki-Dokumentation
     index.md                Wiki-Startseite

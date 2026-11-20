@@ -1,9 +1,10 @@
 // Fuehrt den Skriptteil von pseudonym_gui.html in Node aus (mit einer Attrappe der Seite),
 // damit sich die Browser-Oberflaeche ohne Browser gegen pseudonym.py pruefen laesst.
 //
-// Aufruf:  node gui_harness.js <pseudonym_gui.html> <libs> <auftrag.json>
-//   libs:    Ordner mit xlsx.full.min.js und jszip.min.js. Die Dateien muessen zu den
-//            Pruefsummen (integrity) in der HTML-Datei passen, sonst bricht der Lauf ab.
+// Die Bibliotheken (SheetJS, JSZip) kommen aus der HTML-Datei selbst, in derselben
+// Reihenfolge wie im Browser: erst der eigene Code, dann die eingebetteten Bibliotheken.
+//
+// Aufruf:  node gui_harness.js <pseudonym_gui.html> <auftrag.json>
 //   auftrag: {"jobs": [{"files": [Pfade], "mode": "encrypt", "secret": "...",
 //             "extraCols": [], "outDir": "...", "download": false, "sep": null}], "eval": [Ausdruecke]}
 // Ausgabe: JSON mit einem Eintrag je Auftrag.
@@ -12,20 +13,8 @@ const path = require('path');
 const vm = require('vm');
 const crypto = require('crypto');
 
-const [htmlPath, libsDir, jobPath] = process.argv.slice(2);
+const [htmlPath, jobPath] = process.argv.slice(2);
 const html = fs.readFileSync(htmlPath, 'utf8');
-
-// Bibliotheken nur laden, wenn sie zur Pruefsumme in der HTML-Datei passen
-for (const [global, file] of [['XLSX', 'xlsx.full.min.js'], ['JSZip', 'jszip.min.js']]) {
-  const tag = html.match(new RegExp(`<script[^>]*src="[^"]*/${file.replace(/\./g, '\\.')}"[^>]*>`));
-  const expected = tag && tag[0].match(/integrity="sha512-([^"]+)"/);
-  const actual = crypto.createHash('sha512').update(fs.readFileSync(path.join(libsDir, file))).digest('base64');
-  if (!expected || expected[1] !== actual) {
-    console.error(`${file}: Pruefsumme passt nicht zur HTML-Datei`);
-    process.exit(2);
-  }
-  globalThis[global] = require(path.resolve(libsDir, file));
-}
 
 // ---- Attrappe der Seite ----
 const els = {};
@@ -52,6 +41,7 @@ globalThis.document = {
   createElement: () => mkEl('new'),
 };
 globalThis.window = globalThis;
+globalThis.addEventListener = () => {};
 globalThis.matchMedia = () => ({ matches: false });
 Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
@@ -63,8 +53,23 @@ Object.defineProperty(globalThis, 'localStorage', {
 });
 globalThis.alert = (m) => alerts.push(m);
 
-const script = html.match(/<script>\r?\n([\s\S]*?)<\/script>\s*<\/body>/)[1];
+const script = html.match(/<script id="app">\r?\n([\s\S]*?)<\/script>/)[1];
 vm.runInThisContext(script, { filename: 'pseudonym_gui.inline.js' });
+
+// Eingebettete Bibliotheken: nur ausfuehren, wenn der Code zur Pruefsumme im Tag passt
+for (const m of html.matchAll(/<script id="(lib-[a-z]+)"([^>]*)>([\s\S]*?)<\/script>/g)) {
+  const code = m[3].replace(/\r\n/g, '\n');
+  const expected = (m[2].match(/data-sha512="([^"]+)"/) || [])[1];
+  if (crypto.createHash('sha512').update(code, 'utf8').digest('base64') !== expected) {
+    console.error(`${m[1]}: Code passt nicht zur Pruefsumme in der HTML-Datei`);
+    process.exit(2);
+  }
+  vm.runInThisContext(code, { filename: `${m[1]}.js` });
+}
+if (typeof XLSX === 'undefined' || typeof JSZip === 'undefined') {
+  console.error('Die HTML-Datei enthaelt die Bibliotheken nicht.');
+  process.exit(2);
+}
 const run = (code) => vm.runInThisContext(code);
 
 function asFile(p) {
