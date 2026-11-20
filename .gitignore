@@ -1,17 +1,21 @@
 # Sensible Daten — NIEMALS committen
 *.csv
+*.tsv
 *.xlsx
 *.xlsm
 *.xls
+*.zip
 export_KEY.csv
 
 # Temporaere/generierte Dateien
 *_pseudo.*
 *_restored.*
+*_anonym.*
 ~$*
 
 # Python
 __pycache__/
+.pytest_cache/
 *.py[cod]
 *.egg-info/
 dist/

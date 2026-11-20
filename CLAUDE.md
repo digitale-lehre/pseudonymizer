@@ -4,17 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tool for pseudonymizing and de-pseudonymizing personal data (names, student IDs, email addresses, examiner names, social security numbers, dates of birth, phone numbers) in CSV, XLSX, and XLSM files. Used at MedUni Wien for handling student data in tertial assignment workflows.
+Tool for pseudonymizing, de-pseudonymizing and anonymizing personal data (names, student IDs, email addresses, examiner names, social security numbers, dates of birth, phone numbers) in CSV, XLSX, and XLSM files. Three modes: `encrypt` (replace by pseudonyms), `decrypt` (restore), `anonymize` (clear the cells for good, no secret). Used at MedUni Wien for handling student data in tertial assignment workflows.
 
 Two implementations exist — a Python CLI (`pseudonym.py`) and a standalone browser GUI (`pseudonym_gui.html`). Both use identical cryptography and must always produce the same output for the same input and secret.
 
 ## Architecture
 
 ```
-pseudonym.py            Python CLI (requires cryptography, openpyxl)
-pseudonym_gui.html      Single-file browser app (Web Crypto API + SheetJS + PapaParse + JSZip via CDN)
+pseudonym.py            Python CLI (requires cryptography, openpyxl; see requirements.txt)
+pseudonym_gui.html      Single-file browser app (Web Crypto API + SheetJS + JSZip via CDN with SRI)
 ANLEITUNG_pseudonym.md  German-language user documentation
-tests/test_batch.py     pytest tests for batch functions (process_file, ZIP I/O, etc.)
+tests/                  pytest suite: test_core, test_cli, test_batch, test_consistency, test_gui_parity
+tests/gui_harness.js    Runs the GUI's inline script in Node so it can be compared with the CLI
 docs/                   Wiki-style documentation (column-reference, cryptography, troubleshooting, etc.)
 ```
 
@@ -24,49 +25,53 @@ docs/                   Wiki-style documentation (column-reference, cryptography
 - **Deterministic IV**: HMAC-SHA256(key, plaintext)[:16]
 - **Encryption**: AES-256-CBC with PKCS7 padding
 - **Output format**: URL-safe Base64 (no trailing `=`) of `IV || ciphertext`
+- **Verification on decrypt**: recompute `HMAC-SHA256(key, plaintext)[:16]` and compare with the IV in the token. A value that fails is "not a pseudonym for this secret" and stays unchanged. This detects a wrong secret exactly and needs no format change.
+- **What is encrypted**: the cell text without surrounding whitespace (the whitespace stays outside the token). Excel cells use their text form (`cell_text()` / `cellText()`): integer-valued numbers without `.0`, dates as `2000-01-31 00:00:00`.
 - **CRITICAL**: Any change to these parameters breaks compatibility between the two implementations and makes existing encrypted files unreadable. Never change salt, iteration count, IV derivation, or encoding without updating BOTH implementations and providing a migration path.
 
 ## Column Recognition (case-insensitive, must match in both implementations)
 
+Matching ignores case, so each spelling is listed once (`FAMILIENNAME` matches `Familienname`). **All** matching columns are processed, also several per type (`Telefon` and `Handy`, `Vorname.x` and `Vorname.y`).
+
 | Canonical key | Aliases |
 |--------------|---------|
-| familienname | FAMILIENNAME, Familienname, Zuname, Nachname, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Last name, Lastname, Surname, Family Name, Family_Name, Familienname oder Nachname, Familien- oder Nachname |
-| vorname | VORNAME, Vorname, FirstName, FIRST_NAME_OF_STUDENT, First Name, First name, Given Name, GivenName, Given name, Rufname |
-| matnr | MATRIKELNUMMER, Matrikelnummer, Matnr, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer, ID number, ID Number, ID-Nummer |
-| email | EMAIL_ADDRESS, E-Mail, Email, Mail, EMAIL, E_MAIL, E-Mail des Teilnehmers, Attendee Email, E-Mail-Adresse, E-Mail Adresse, Emailadresse, Mailadresse, Email address, Email Address |
-| pruefer | Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in |
+| familienname | Familienname, Zuname, Nachname, Last Name, LastName, Surname, Family Name, Family_Name, FAMILY_NAME_OF_STUDENT, Familienname oder Nachname, Familien- oder Nachname |
+| vorname | Vorname, First Name, FirstName, Given Name, GivenName, Rufname, FIRST_NAME_OF_STUDENT |
+| matnr | Matrikelnummer, Matnr, MatrNr, Matrikel, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., StudentID, Student_ID, Student ID, REGISTRATION_NUMBER, Registration Number, ID number, ID-Nummer, Kennnummer |
+| email | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, EmailAddress, E-Mail-Adresse, E-Mail Adresse, Emailadresse, Mailadresse, Email address, E-Mail des Teilnehmers, Attendee Email |
+| pruefer | Examiner, Prüfer, Pruefer, Prufer, Prüfer/in, PrüferIn, Prüfer:in |
 | anzeigename | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |
-| svnr | Sozialversicherungsnummer, SVNr, SVNR, SV-Nr, SV-Nr., SV-Nummer, SV Nummer, Versicherungsnummer, Social Security Number, SSN |
-| geburtsdatum | Geburtsdatum, Geburtstag, Geb.Datum, Geb.-Datum, GebDatum, Geb. Datum, Birthday, Date of Birth, DateOfBirth, DOB, Birth Date, BirthDate, Birthdate |
+| svnr | Sozialversicherungsnummer, SVNr, SV-Nr, SV-Nr., SV-Nummer, SV Nummer, Versicherungsnummer, Social Security Number, SSN |
+| geburtsdatum | Geburtsdatum, Geburtstag, Geb.Datum, Geb.-Datum, GebDatum, Geb. Datum, Birthday, Date of Birth, DateOfBirth, DOB, Birth Date, BirthDate |
 | telefon | Telefon, Telefonnummer, Tel, Tel., Tel.Nr., TelNr, Phone, Phone Number, PhoneNumber, Handy, Handynummer, Mobilnummer, Mobile, Mobiltelefon, Cell, Cell Phone |
-| examiner_id | examiner_id, Examiner_ID, EXAMINER_ID |
-| examiner_nachname | examiner_last_name, Examiner_Last_Name, EXAMINER_LAST_NAME |
-| examiner_vorname | examiner_first_name, Examiner_First_Name, EXAMINER_FIRST_NAME |
-| candidate_id | candidate_id, Candidate_ID, CANDIDATE_ID |
-| candidate_nachname | candidate_last_name, Candidate_Last_Name, CANDIDATE_LAST_NAME |
-| candidate_vorname | candidate_first_name, Candidate_First_Name, CANDIDATE_FIRST_NAME |
+| examiner_id | examiner_id |
+| examiner_nachname | examiner_last_name |
+| examiner_vorname | examiner_first_name |
+| candidate_id | candidate_id |
+| candidate_nachname | candidate_last_name |
+| candidate_vorname | candidate_first_name |
 
 Valuatic exam software columns use separate canonical keys (e.g., `examiner_nachname` vs `familienname`) because examiner and candidate data appear in the same file and must be encrypted independently.
 
-**Suffix stripping:** Before matching, suffixes like `.x`, `.y`, `.1`, `.2` (from R merge operations) are automatically stripped from column headers. E.g., `Vorname.x` matches as `Vorname`.
+**Suffix stripping:** Before matching, one trailing `.suffix` (letters, digits, underscore) is stripped from the header, e.g. `.x`, `.y`, `.1` from R merges. `Vorname.x` matches as `Vorname`, `Name.y` as `Name`. The rule is deliberately broad (`Mail.Server` counts as email): encrypting one column too many is safer than one too few. Do not narrow it without checking real exports.
 
-`NAME` column: auto-detected as composite of familienname + vorname (checked against first data row). Preserves original order ("Vorname Nachname" vs "Nachname Vorname"). Note: `Anzeigename`/`Display Name` is NOT a composite — it is encrypted independently (Webex display names may differ from Vorname + Nachname). If a `Name` column is not a composite (no separate Vorname+Familienname, or the composite check fails), the whole value is encrypted as a single token; a file whose only recognized column is `Name` is still processed.
+`NAME` column: checked **per row**. If the cell equals `familienname vorname` or `vorname familienname` of the same row, it becomes `<token> <token>` in the same order. Otherwise the whole value becomes one token. On decrypt, a cell of two valid tokens is restored part by part, anything else as one token. Both ways return the original text. Note: `Anzeigename`/`Display Name` is NOT a composite — it is encrypted independently (Webex display names may differ from Vorname + Nachname). A file whose only recognized column is `Name` is still processed.
 
-When adding new aliases, update `COLUMN_ALIASES` in `pseudonym.py` AND the `COLUMN_ALIASES` object in `pseudonym_gui.html`.
+When adding new aliases, update `COLUMN_ALIASES` in `pseudonym.py` AND the `COLUMN_ALIASES` object in `pseudonym_gui.html`. `tests/test_consistency.py` fails if the two differ or if an alias is missing in a doc table.
 
 ## Encoding Support
 
 Both implementations handle multiple file encodings for CSV:
 - **UTF-8** (with and without BOM)
-- **UTF-16 LE** (with BOM — used by Webex exports)
-- **UTF-16 BE** (with BOM)
+- **UTF-16 LE** (with BOM — used by Webex exports; without BOM detected by the pattern of NUL bytes)
+- **UTF-16 BE** (with or without BOM)
 - **Windows-1252** (no BOM, not valid UTF-8 -- ANSI exports, e.g. from MedCampus or Excel)
 
 Undefined Windows-1252 bytes (0x81, 0x8D, 0x8F, 0x90, 0x9D) map to the matching C1 characters, as browsers do (Python: `cp1252-c1` error handler).
 
 Detection is via `detect_file_encoding()` (Python) / `detectEncoding()` (JS). The original encoding, BOM and trailing newline (present or absent) are preserved on output for byte-identical roundtrips.
 
-Exception: a pure-ASCII input without BOM (e.g. a pseudonymized file whose umlauts were all in encrypted columns) whose output contains non-ASCII characters is written as **UTF-8 with BOM**, because the original encoding cannot be determined and Excel needs the BOM to show umlauts correctly.
+Two exceptions, both written as **UTF-8 with BOM**: (1) a decrypted value that the input encoding cannot represent (e.g. `Č` in Windows-1252), with a warning; (2) a pure-ASCII input without BOM (e.g. a pseudonymized file whose umlauts were all in encrypted columns) whose output contains non-ASCII characters, because the original encoding cannot be determined and Excel needs the BOM to show umlauts correctly.
 
 ## Build & Test Commands
 
@@ -74,8 +79,8 @@ Exception: a pure-ASCII input without BOM (e.g. a pseudonymized file whose umlau
 # Install Python dependencies
 pip install cryptography openpyxl
 
-# Encrypt CSV
-python pseudonym.py encrypt input.csv --secret "test" --sep ","
+# Encrypt CSV (separator is auto-detected; --sep ";" forces one)
+python pseudonym.py encrypt input.csv --secret "test"
 
 # Encrypt XLSX
 python pseudonym.py encrypt input.xlsx --secret "test"
@@ -83,28 +88,41 @@ python pseudonym.py encrypt input.xlsx --secret "test"
 # Decrypt
 python pseudonym.py decrypt input_pseudo.csv --secret "test"
 
-# Roundtrip verification (output should be byte-identical to input for CSV)
+# Anonymize (clears the identity cells, no secret)
+python pseudonym.py anonymize input.csv
+
+# Roundtrip verification (byte-identical for CSV; the two exceptions are listed under "Encoding Support")
 python pseudonym.py encrypt input.csv --secret "test"
 python pseudonym.py decrypt input_pseudo.csv --secret "test"
 diff input.csv input_pseudo_restored.csv
 ```
 
 ```bash
-# Batch encrypt
+# Batch encrypt: files, a folder, or a wildcard (expanded by the program, works on Windows)
 python pseudonym.py encrypt file1.csv file2.csv --secret "test"
+python pseudonym.py encrypt exports/ --secret "test" --output-dir out/
+python pseudonym.py encrypt "*.csv" --secret "test"
 
 # ZIP input
 python pseudonym.py encrypt archive.zip --secret "test"
 
 # ZIP output
-python pseudonym.py encrypt *.csv --secret "test" --zip
+python pseudonym.py encrypt "*.csv" --secret "test" --zip
 
 # Encrypt with extra columns
 python pseudonym.py encrypt input.csv --secret "test" --extra-cols "Kommentar,Notiz"
 
-# Run tests
-python -m pytest tests/test_batch.py -v
+# Run all tests (new test files are picked up automatically)
+python -m pytest tests -v
+
+# Include the GUI parity tests: needs Node.js and the two GUI libraries in a folder
+# outside the project (download commands: docs/development.md)
+PSEUDO_GUI_LIBS=~/pseudo-libs python -m pytest tests -v
 ```
+
+`--secret "test"` is fine for throwaway test data. With a real secret, omit `--secret`: the CLI then prompts without echo (twice on encrypt). `PSEUDONYM_SECRET` works for scripts.
+
+Run tests with synthetic data only, and write test output outside the project folder.
 
 The browser GUI requires no build step — open `pseudonym_gui.html` in any modern browser.
 
@@ -120,20 +138,33 @@ print(encrypt_value(key, "Mueller"))
 # Expected: a9hB-p5pLs7rcmnUUFNdDD2a2KN4R1bUd2LjIkYJXRc
 ```
 
-The HTML GUI must produce the same token for the same input and secret.
+The HTML GUI must produce the same token for the same input and secret. Check it in the browser console of the opened page:
+
+```js
+createCipher("testSecret123").then(c => c.encrypt("Mueller")).then(console.log)
+```
+
+Both checks are automated: `tests/test_core.py::test_acceptance_vector` (Python) and `tests/test_gui_parity.py` (GUI code in Node; also compares whole output files byte by byte). After any change to processing logic in one implementation, make the same change in the other and run the parity tests.
 
 ## Coding Conventions
 
 ### Python (pseudonym.py)
 - Python 3.8+ compatible
-- Comments and CLI output in German (ASCII-safe: ae/oe/ue instead of umlauts)
+- Comments and CLI output in German (ASCII-safe: ae/oe/ue instead of umlauts). This applies to prose only. Column aliases are data: write them exactly as they appear in exports (`Prüfer`, not `Pruefer`), in code and in every doc table
+- User-facing errors are `PseudoError` with a sentence a non-technical user can act on. Never call `sys.exit()` inside processing functions; `main(argv)` returns the exit code and keeps a batch running after one file fails
+- A missing third-party package must never end in a traceback. `cryptography` is imported in a `try` at the top, `openpyxl` only where needed; `missing_packages()` / `package_hint()` report it before the secret prompt, with the install command for the running interpreter (`sys.executable`). `anonymize` and CSV-only runs work without the package they do not need
 - Functions: `snake_case`
-- CSV processing preserves original encoding, BOM, quoting style (QUOTE_ALL vs QUOTE_MINIMAL), and line endings (CRLF vs LF) for byte-identical roundtrips
-- XLSX/XLSM processing: uses openpyxl, preserves cell formatting. Includes `_fix_xlsx_drawings()` for repairing broken drawing references before loading. For `.xlsm` files, `process_xlsx` loads with `keep_vba=True` to preserve macros (CLI only; the browser GUI drops macros and formatting for `.xlsm`).
+- CSV processing never re-serializes the file. `scan_csv()` returns the text span of every field; `process_csv()` replaces only the identity cells and copies everything else verbatim (encoding, BOM, quoting per cell, whitespace, line endings, metadata rows, blank and ragged rows). Do not reintroduce `csv.reader`/`csv.writer` or dict rows: they lose duplicate headers and normalize quoting
+- XLSX/XLSM processing: uses openpyxl, preserves cell formatting. Read `ws.max_row`/`ws.max_column` once per sheet, never inside a loop (openpyxl recomputes them on every access). Includes `_fix_xlsx_drawings()` for repairing broken drawing references before loading. For `.xlsm` files, `process_xlsx` loads with `keep_vba=True` to preserve macros (CLI only; the browser GUI keeps values, number formats, formulas and column widths, but drops colors, fonts, borders and macros).
 
 ### HTML/JS (pseudonym_gui.html)
 - Single self-contained HTML file — all CSS and JS inline
-- External libraries via CDN only (cdnjs.cloudflare.com): PapaParse, SheetJS, JSZip
+- External libraries: JSZip from cdnjs.cloudflare.com, SheetJS from cdn.sheetjs.com (cdnjs only carries SheetJS 0.18.5, which has known vulnerabilities). Every `<script src>` needs a pinned version, `integrity` (SHA-512) and `crossorigin="anonymous"`
+- A Content-Security-Policy `<meta>` blocks all network connections, forms and foreign images. A new script host must be added there
+- Everything that comes from a file (headers, sheet names, cell values, file names) goes into the page through `esc()` only
+- CSV parsing uses the built-in `scanCsv()` (same algorithm as `scan_csv()` in Python), not a CSV library
+- XLSX: `processXlsx()` replaces cells in the loaded workbook; it does not rebuild sheets from arrays (that turned every date and number into text)
+- The info popup table is generated from `COLUMN_ALIASES`; do not hand-write it
 - Web Crypto API for all cryptographic operations (no polyfills)
 - Vanilla JS, no framework
 - CSS custom properties for dark/light theming
@@ -141,30 +172,37 @@ The HTML GUI must produce the same token for the same input and secret.
 
 ## Security Rules
 
-- **Never commit CSV or XLSX/XLSM data files** — they contain student PII. The `.gitignore` blocks `*.csv`, `*.xlsx`, and `*.xlsm`.
-- **Never store or log secrets** — the secret exists only in memory during processing
+- **Never commit data files** — they contain student PII. The `.gitignore` blocks `*.csv`, `*.tsv`, `*.xlsx`, `*.xlsm`, `*.xls` and `*.zip`.
+- **Never open `.csv`, `.xlsx`, `.xlsm` or `.png` files in the project folder** — they can hold real student data. Create synthetic test data in a temporary folder outside the project.
+- **Never store or log secrets** — the secret exists only in memory during processing. The CLI prompts for it without echo; `--secret` remains for scripts but puts the secret into the shell history, so docs and examples for real data must not recommend it
 - **Never weaken crypto parameters** — no reducing PBKDF2 iterations, no switching to ECB mode, no removing IV
+- **Never write an output file when nothing was processed** — a file without recognized columns, or a decrypt where no value could be decrypted (wrong secret), is an error, not a `_pseudo`/`_restored` copy of the input
+- **Anonymize clears recognized columns only** — metadata rows, other columns and file names stay; the tools warn, and the docs must not promise anonymity
 - The deterministic IV is an intentional trade-off: it enables consistent pseudonyms across files but means identical values produce identical ciphertext. This is acceptable for this use case.
 
 ## Common Tasks
 
 ### Adding a new column alias
-1. Add alias to `COLUMN_ALIASES` in `pseudonym.py`
-2. Add same alias to `COLUMN_ALIASES` in `pseudonym_gui.html`
-3. Update the info popup table in `pseudonym_gui.html`
-4. Update the table in `ANLEITUNG_pseudonym.md`
-5. Update the table in `README.md`
-6. Update `docs/column-reference.md`
+1. Add alias to `COLUMN_ALIASES` in `pseudonym.py` (one spelling only; matching ignores case)
+2. Add same alias to `COLUMN_ALIASES` in `pseudonym_gui.html` (the info popup is generated from it)
+3. Update the tables in `ANLEITUNG_pseudonym.md`, `README.md`, `docs/column-reference.md` and in this file
+4. Run `python -m pytest tests` — `tests/test_consistency.py` names every place where the alias is missing
 
 ### Adding a new identity column type
 1. Add new key + aliases to `COLUMN_ALIASES` dict in both files
-2. No other code changes needed — the column will be auto-detected and encrypted
+2. No other code changes needed — the column will be auto-detected and encrypted (add a label to `KIND_LABELS` in the GUI for the info popup)
 3. Update all documentation files (see alias checklist above)
 
+### Releasing a new version
+The version number lives in three places: `__version__` in `pseudonym.py`, the header line in `pseudonym_gui.html`, and `docs/installation.md`. `tests/test_consistency.py` checks that they agree.
+
 ### Header Row Auto-Detection
-Both implementations scan for the header row (up to 20 rows). Files with metadata rows before the header (e.g., MLW exports) are supported. Metadata rows are preserved unchanged in output.
+Both implementations take the row with the most recognized columns among the first 20 rows (identity columns, `Name` and extra columns all count; ties: more filled cells, then the earlier row). Files with metadata rows before the header (e.g., MLW exports) are supported. Metadata rows are preserved unchanged in output — also when they contain a name.
+
+### Separator Auto-Detection
+Both implementations try `;`, `,` and tab and take the one whose header row has the most recognized columns. `--sep` (CLI) or the separator select (GUI, single CSV) overrides it.
 
 ### Modifying CSV format preservation
 - `detect_file_encoding()`: detects encoding (UTF-8/UTF-16 LE/BE/Windows-1252) and BOM from raw bytes
-- Quoting detection: inline in `process_csv()`, checks header row (not first line) for QUOTE_ALL
-- Encoding, BOM, quoting, and line endings must all be preserved for byte-identical roundtrips
+- `scan_csv()` / `scanCsv()`: field spans; `csv_field()` / `csvField()`: a replaced field keeps its quotes and gets quotes only if the new value needs them
+- Roundtrips must stay byte-identical. The only exceptions are the two UTF-8-with-BOM cases under "Encoding Support"; `tests/test_core.py` and `tests/test_gui_parity.py` hold the cases

@@ -25,6 +25,8 @@ Willkommen im Wiki des pseudonymizer-Projekts. Hier finden Sie alle Informatione
 | Das Tool per Kommandozeile nutzen | [Installation](installation.md) → [CLI Referenz](usage-cli.md) |
 | Mehrere Dateien auf einmal verarbeiten | [CLI Batch-Modus](usage-cli.md#batch-modus) · [GUI Batch-Modus](usage-gui.md#batch-modus) |
 | Eigene Spalten zur Verschluesselung hinzufuegen | [CLI](usage-cli.md#zusaetzliche-spalten) · [GUI](usage-gui.md#zusaetzliche-spalten) |
+| Spalten endgueltig leeren (anonymisieren) | [CLI](usage-cli.md#anonymisieren) · [GUI](usage-gui.md#anonymisieren) |
+| Das Secret eingeben, ohne dass es im Verlauf der Konsole steht | [CLI](usage-cli.md#secret-eingeben) |
 | Wissen welche Spalten erkannt werden | [Spalten-Referenz](column-reference.md) |
 | Ein Problem loesen | [Troubleshooting](troubleshooting.md) |
 | Die Kryptographie verstehen | [Kryptographie](cryptography.md) |
@@ -39,5 +41,7 @@ pseudonymizer/
   ANLEITUNG_pseudonym.md  Schritt-fuer-Schritt-Anleitung
   README.md               Projekt-Uebersicht
   CLAUDE.md               Entwickler-Kontext
+  requirements.txt        Python-Abhaengigkeiten (getestete Versionen)
+  tests/                  Automatische Tests (pytest; GUI-Gleichlauf in Node)
   docs/                   Wiki (diese Seiten)
 ```
