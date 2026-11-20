@@ -6,7 +6,11 @@ Der pseudonymizer erkennt Identitaetsspalten automatisch anhand ihrer Spaltennam
 
 Nur erkannte Identitaetsspalten werden verschluesselt. Alle anderen Spalten bleiben unveraendert.
 
-**Suffix-Stripping:** Vor dem Abgleich werden Suffixe wie `.x`, `.y`, `.1`, `.2` (aus R-Merge-Operationen) automatisch von Spaltennamen entfernt. Z.B. wird `Vorname.x` als `Vorname` erkannt, `MATRIKELNUMMER.1` als `MATRIKELNUMMER`.
+**Mehrere Spalten je Typ:** Alle passenden Spalten werden verarbeitet. Hat eine Datei `Telefon` und `Handy` oder `E-Mail` und `Email`, werden beide verschluesselt.
+
+**Kopfzeile:** Unter den ersten 20 Zeilen gilt die Zeile mit den meisten erkannten Spalten als Kopfzeile. Bei Gleichstand gewinnt die Zeile mit mehr gefuellten Zellen, dann die fruehere. Zeilen davor bleiben unveraendert.
+
+**Suffix-Stripping:** Vor dem Abgleich wird eine Endung nach dem letzten Punkt entfernt (`.x`, `.y`, `.1`, `.2` aus R-Merge-Operationen, aber auch jede andere Endung aus Buchstaben, Ziffern und Unterstrichen). Z.B. wird `Vorname.x` als `Vorname` erkannt, `MATRIKELNUMMER.1` als `MATRIKELNUMMER`. Die Regel ist bewusst grosszuegig: Im Zweifel wird eine Spalte zu viel verschluesselt, nicht eine zu wenig. Eine Spalte `Mail.Server` gilt deshalb als E-Mail-Spalte.
 
 
 ## Erkannte Spaltentypen
@@ -258,12 +262,13 @@ Die `NAME`-Spalte wird gesondert behandelt:
 | `NAME` | Allgemein |
 | `Name` | Allgemein |
 | `name` | Kleinschreibung |
+| `Name.x`, `Name.y` | R-Merge (Endung wird entfernt) |
 
-**Erkennung als Zusammensetzung:** Falls eine `NAME`-Spalte existiert und deren Inhalt in der ersten Datenzeile der Kombination aus `FAMILIENNAME VORNAME` (oder `VORNAME FAMILIENNAME`) entspricht, wird sie als zusammengesetzt erkannt.
+**Erkennung als Zusammensetzung:** Das Tool prueft jede Zeile einzeln. Entspricht der Inhalt der `NAME`-Zelle der Kombination aus Familienname und Vorname derselben Zeile (`FAMILIENNAME VORNAME` oder `VORNAME FAMILIENNAME`, mit einem Leerzeichen), gilt die Zelle als zusammengesetzt.
 
-**Verhalten (Composite):** Die `NAME`-Spalte wird nicht einzeln verschluesselt, sondern automatisch aus den verschluesselten Einzelwerten von Familienname und Vorname zusammengesetzt. Format: `<verschluesselter_Familienname> <verschluesselter_Vorname>`.
+**Verhalten (Composite):** Die Zelle wird aus den verschluesselten Einzelwerten zusammengesetzt, in der urspruenglichen Reihenfolge. Format: `<Token> <Token>`.
 
-**Verhalten (kein Composite):** Falls die Composite-Erkennung fehlschlaegt — weil keine separaten Vorname-/Familienname-Spalten vorhanden sind, oder weil der Inhalt der ersten Datenzeile nicht der erwarteten Kombination entspricht — wird der gesamte Wert der `NAME`-Spalte als einzelnes verschluesseltes Token behandelt.
+**Verhalten (kein Composite):** Passt der Inhalt der Zeile nicht (z.B. `Dr. Eva Test`, `Test, Eva`) oder fehlen separate Vorname-/Familienname-Spalten, wird der ganze Wert der Zelle als ein Token verschluesselt. Beim Entschluesseln kommt in beiden Faellen der urspruengliche Inhalt zurueck.
 
 **Alleinige Spalte:** Eine Datei oder ein Sheet, deren einzige erkannte Identitaetsspalte `NAME` ist (keine separaten Vorname-/Familienname-Spalten), wird dennoch vollstaendig verarbeitet.
 
@@ -284,9 +289,10 @@ Es muessen nicht alle Spaltentypen vorhanden sein. Das Tool verschluesselt nur d
 
 Um einen neuen Spaltennamen zu erkennen:
 
-1. `COLUMN_ALIASES` in `pseudonym.py` erweitern
-2. `COLUMN_ALIASES` in `pseudonym_gui.html` erweitern
-3. Info-Popup-Tabelle in `pseudonym_gui.html` aktualisieren
-4. Diese Spalten-Referenz aktualisieren
-5. Tabelle in `ANLEITUNG_pseudonym.md` aktualisieren
-6. Tabelle in `README.md` aktualisieren
+1. `COLUMN_ALIASES` in `pseudonym.py` erweitern (jede Schreibweise nur einmal; Gross-/Kleinschreibung ist egal)
+2. `COLUMN_ALIASES` in `pseudonym_gui.html` gleich erweitern (das Info-Popup der GUI entsteht daraus von selbst)
+3. Diese Spalten-Referenz aktualisieren
+4. Tabelle in `ANLEITUNG_pseudonym.md` aktualisieren
+5. Tabelle in `README.md` aktualisieren
+6. Tabelle in `CLAUDE.md` aktualisieren
+7. `python -m pytest tests` ausfuehren. `tests/test_consistency.py` meldet jede Stelle, an der der Alias fehlt

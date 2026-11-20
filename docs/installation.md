@@ -10,7 +10,7 @@ Die Browser-GUI (`pseudonym_gui.html`) benoetigt **keine Installation**. Einfach
 
 **Voraussetzungen:** Ein moderner Browser (Chrome, Firefox, Edge, Safari). Alle gaengigen Versionen der letzten Jahre werden unterstuetzt.
 
-**Hinweis:** Die GUI laedt drei kleine JavaScript-Bibliotheken (PapaParse, SheetJS, JSZip) von einem CDN. Beim ersten Start ist daher eine Internetverbindung noetig. Danach werden die Bibliotheken aus dem Browser-Cache geladen.
+**Hinweis:** Die GUI laedt beim Start zwei JavaScript-Bibliotheken aus dem Netz: SheetJS 0.20.3 (cdn.sheetjs.com) und JSZip 3.10.1 (cdnjs.cloudflare.com). Dafuer ist eine Internetverbindung noetig. Der Browser prueft bei beiden die Pruefsumme und laedt keine veraenderte Datei. Ihre Daten bleiben auf dem Rechner: Die Seite kann technisch keine Daten senden.
 
 
 ## Python CLI
@@ -26,6 +26,8 @@ Die Browser-GUI (`pseudonym_gui.html`) benoetigt **keine Installation**. Einfach
 1. [python.org/downloads](https://www.python.org/downloads/) besuchen
 2. Neueste Version herunterladen und installieren
 3. **Wichtig:** Haken bei "Add Python to PATH" setzen
+
+Sind unter Windows mehrere Python-Versionen installiert, zeigt `py -0p` alle an. `python` startet eine davon; die Pakete muessen in genau dieser Version installiert sein. Mit `py -3.10 pseudonym.py ...` laesst sich eine bestimmte Version waehlen.
 
 **macOS:**
 ```bash
@@ -43,6 +45,12 @@ sudo apt install python3 python3-pip
 pip install cryptography openpyxl
 ```
 
+Oder mit den Versionen, mit denen das Tool getestet ist:
+
+```bash
+pip install -r requirements.txt
+```
+
 | Paket | Zweck |
 |---|---|
 | `cryptography` | AES-256-CBC Verschluesselung und PBKDF2 Schluesselableitung |
@@ -54,7 +62,9 @@ pip install cryptography openpyxl
 python pseudonym.py --version
 ```
 
-Erwartete Ausgabe: `pseudonym.py 0.6.1`
+Erwartete Ausgabe: `pseudonym.py 0.7.0` (aktuelle Version: v0.7.0)
+
+Fehlt ein Paket, steht darunter eine Zeile `ACHTUNG: Python-Paket ... fehlt` mit dem passenden Installationsbefehl. Das passiert auch, wenn mehrere Python-Versionen installiert sind und die Pakete in einer anderen liegen.
 
 ### Optionale virtuelle Umgebung
 

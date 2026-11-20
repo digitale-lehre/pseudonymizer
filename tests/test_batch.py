@@ -365,15 +365,15 @@ def test_matnr_dot_alias_variants_recognized():
 def test_matnr_dot_alias_encrypted_roundtrip(tmp_path):
     """CSV mit 'Mat.nr.'-Spalte wird verschluesselt und exakt wiederhergestellt."""
     src = tmp_path / "data.csv"
-    src.write_text("Mat.nr.,Vorname\n01634795,Max\n", encoding="utf-8")
+    src.write_text("Mat.nr.,Vorname\n01234567,Max\n", encoding="utf-8")
     enc = tmp_path / "data_pseudo.csv"
     process_file(str(src), str(enc), "secret", "encrypt", ",")
     content = enc.read_text(encoding="utf-8")
-    assert "01634795" not in content
+    assert "01234567" not in content
     assert "Mat.nr." in content  # Header bleibt
     dec = tmp_path / "data_restored.csv"
     process_file(str(enc), str(dec), "secret", "decrypt", ",")
-    assert "01634795" in dec.read_text(encoding="utf-8")
+    assert "01234567" in dec.read_text(encoding="utf-8")
 
 
 def test_detect_file_encoding_cp1252_without_bom():

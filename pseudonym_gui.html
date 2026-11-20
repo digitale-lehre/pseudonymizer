@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pseudonymisierung — MedUni Wien</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Die Seite darf keine Daten ins Netz senden: keine Verbindungen, keine Formulare, keine fremden Bilder -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.sheetjs.com https://cdnjs.cloudflare.com; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<!-- Feste Versionen mit Pruefsumme (integrity): Eine veraenderte Datei laedt der Browser nicht -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha512-AXreDm/maQt99+BKeuV5VUY8x0xBAZPX6OYenHRlRwG/C35PKcZ7GQXITTR8Zf3cLHeTfwVDLEMBBPf7laKtAA==" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous"></script>
 <style>
 :root { --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --text: #1e293b; --text2: #64748b;
   --border: #e2e8f0; --accent: #2563eb; --accent2: #1d4ed8; --green: #16a34a; --green-bg: #dcfce7;
@@ -87,6 +89,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sa
   font-weight: 600; font-size: .9rem; cursor: pointer; transition: all .2s; white-space: nowrap; }
 .mode-btn.active-enc { background: var(--accent); color: #fff; }
 .mode-btn.active-dec { background: var(--green); color: #fff; }
+.mode-btn.active-anon { background: var(--orange); color: #fff; }
 
 /* Action button */
 .action-btn { padding: .7rem 2rem; border: none; border-radius: .5rem; font-size: 1rem; font-weight: 700;
@@ -95,6 +98,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sa
 .action-btn.encrypt:hover { background: var(--accent2); }
 .action-btn.decrypt { background: var(--green); }
 .action-btn.decrypt:hover { background: #15803d; }
+.action-btn.anonymize { background: var(--orange); }
+.action-btn.anonymize:hover { background: #c2410c; }
 .action-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Progress */
@@ -171,6 +176,7 @@ td.changed { background: var(--orange-bg); }
 .hist-mode { font-size: .72rem; padding: .15rem .5rem; border-radius: 9999px; font-weight: 600; }
 .hist-mode.enc { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 .hist-mode.dec { background: var(--green-bg); color: var(--green); }
+.hist-mode.anon { background: var(--orange-bg); color: var(--orange); }
 .hist-time { color: var(--text2); font-size: .75rem; }
 
 /* Info tooltip */
@@ -179,10 +185,10 @@ td.changed { background: var(--orange-bg); }
   color: var(--text2); display: inline-flex; align-items: center; justify-content: center; }
 .info-popup { display: none; position: absolute; top: 100%; left: 0; z-index: 10; background: var(--bg2);
   border: 1px solid var(--border); border-radius: .5rem; padding: 1rem; box-shadow: var(--shadow);
-  width: max-content; max-width: 400px; font-size: .78rem; margin-top: .35rem; }
+  width: max-content; max-width: 400px; max-height: 60vh; overflow-y: auto; font-size: .78rem; margin-top: .35rem; }
 .info-popup.show { display: block; }
 .info-popup table { font-size: .75rem; }
-.info-popup th, .info-popup td { padding: .25rem .5rem; }
+.info-popup th, .info-popup td { padding: .25rem .5rem; white-space: normal; max-width: none; vertical-align: top; }
 
 /* Download button */
 .dl-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .6rem 1.5rem; border: none;
@@ -195,16 +201,22 @@ td.changed { background: var(--orange-bg); }
 .sep-group select { width: 100%; padding: .6rem .75rem; border: 1px solid var(--border);
   border-radius: .5rem; background: var(--bg); color: var(--text); font-size: .95rem; outline: none; }
 
+/* Hinweise */
+.notice { margin-top: .75rem; padding: .6rem .8rem; border-radius: .5rem; font-size: .82rem; line-height: 1.5;
+  background: var(--red-bg); color: var(--red); border: 1px solid var(--red); overflow-wrap: anywhere; }
+.notice.warn { background: var(--orange-bg); color: var(--orange); border-color: var(--orange); }
+
 .hidden { display: none !important; }
 </style>
 </head>
 <body>
 <div class="container">
+  <div id="libNotice" class="notice hidden" style="margin:0 0 1rem;">Die Programmbibliotheken konnten nicht geladen werden. Bitte die Internetverbindung pruefen und die Seite neu laden.</div>
   <!-- Header -->
   <div class="header">
     <div>
       <h1><span>Pseudonymisierung</span> Tool</h1>
-      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.6.1 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
+      <div style="font-size:.82rem;color:var(--text2);margin-top:.2rem;">v0.7.0 — MedUni Wien — AES-256-CBC, kompatibel mit pseudonym.py</div>
     </div>
     <div class="header-right">
       <div class="badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Lokal &amp; sicher</div>
@@ -216,20 +228,24 @@ td.changed { background: var(--orange-bg); }
   <div class="card">
     <div class="dropzone" id="dropzone">
       <div class="dropzone-icon" id="dzIcon">&#128196;</div>
-      <div id="dzText" class="dropzone-text">CSV, XLSX oder XLSM hierher ziehen — oder klicken</div>
+      <div id="dzText" class="dropzone-text">CSV / XLSX / XLSM / ZIP hierher ziehen — oder klicken (Mehrfachauswahl)</div>
     </div>
     <div id="fileList" class="file-list"></div>
+    <div id="loadNotices" class="notice hidden"></div>
     <input type="file" id="fileInput" accept=".csv,.xlsx,.xlsm,.tsv,.txt,.zip" multiple style="display:none">
   </div>
 
   <div class="card">
     <div class="input-row">
-      <div class="input-group">
-        <label>Secret (Passwort)</label>
+      <div class="input-group" id="secretGroup">
+        <label for="secretInput">Secret (Passwort)</label>
         <div class="input-wrap">
-          <input type="password" id="secretInput" placeholder="Geheimer Schluessel eingeben...">
+          <input type="password" id="secretInput" autocomplete="off" spellcheck="false" placeholder="Geheimer Schluessel eingeben...">
           <button class="eye-btn" id="eyeBtn" title="Anzeigen/Verbergen">&#128065;</button>
         </div>
+      </div>
+      <div class="input-group hidden" id="anonHint">
+        <div class="notice warn" style="margin:0;">Anonymisieren leert die markierten Spalten endgueltig. Es gibt kein Secret und keinen Weg zurueck. Alle anderen Spalten und die Zeilen vor der Kopfzeile bleiben unveraendert. Bitte pruefen, ob sie Personen erkennbar machen.</div>
       </div>
       <div class="sep-group" id="sepGroup">
         <label>Separator</label>
@@ -237,30 +253,16 @@ td.changed { background: var(--orange-bg); }
       </div>
       <div style="display:flex;gap:.5rem;align-items:flex-end;">
         <div class="mode-toggle">
-          <button class="mode-btn active-enc" id="btnEnc" onclick="setMode('encrypt')">Encrypt</button>
-          <button class="mode-btn" id="btnDec" onclick="setMode('decrypt')">Decrypt</button>
+          <button class="mode-btn active-enc" id="btnEnc" onclick="setMode('encrypt')">Verschluesseln</button>
+          <button class="mode-btn" id="btnDec" onclick="setMode('decrypt')">Entschluesseln</button>
+          <button class="mode-btn" id="btnAnon" onclick="setMode('anonymize')">Anonymisieren</button>
         </div>
         <div style="position:relative;display:inline-block;">
           <button class="info-btn" id="infoBtn">?</button>
           <div class="info-popup" id="infoPopup">
-            <strong>Erkannte Identitaetsspalten (case-insensitive):</strong>
-            <p style="margin:.4rem 0;font-size:.7rem;color:var(--text2);">Suffixe wie .x, .y (R-Merges) werden automatisch entfernt.</p>
-            <table style="margin-top:.5rem;">
-              <tr><th>Typ</th><th>Spaltennamen</th></tr>
-              <tr><td>Familienname</td><td>FAMILIENNAME, Zuname, Nachname, Surname, Last Name, Family Name, FAMILY_NAME_OF_STUDENT, Familienname oder Nachname</td></tr>
-              <tr><td>Vorname</td><td>VORNAME, First Name, Given Name, Rufname, FIRST_NAME_OF_STUDENT</td></tr>
-              <tr><td>Matrikelnr.</td><td>MATRIKELNUMMER, Matnr, Matrikelnr, Mat.Nr., Mat-Nr., Student ID, REGISTRATION_NUMBER, ID number, ID-Nummer, Kennnummer</td></tr>
-              <tr><td>E-Mail</td><td>EMAIL_ADDRESS, E-Mail, E-Mail-Adresse, Emailadresse, Mailadresse, Email address, Attendee Email</td></tr>
-              <tr><td>SV-Nr.</td><td>Sozialversicherungsnummer, SVNr, SV-Nr, SV-Nummer, Versicherungsnummer, SSN</td></tr>
-              <tr><td>Geburtsdatum</td><td>Geburtsdatum, Geburtstag, Geb.Datum, Birthday, Date of Birth, DOB</td></tr>
-              <tr><td>Telefon</td><td>Telefon, Telefonnummer, Tel, Phone, Handy, Mobilnummer, Mobile</td></tr>
-              <tr><td>Pruefer</td><td>Examiner, Pruefer, Prüfer, Prüfer/in, PrüferIn, Prüfer:in</td></tr>
-              <tr><td>Anzeigename</td><td>Anzeigename, Display Name, Full Name, Student Name</td></tr>
-              <tr><td>Name</td><td>Composite aus Familienname + Vorname — sonst wird der ganze Wert verschluesselt</td></tr>
-              <tr><td colspan="2" style="padding-top:.5rem;font-weight:600;">Valuatic</td></tr>
-              <tr><td>Examiner</td><td>examiner_id, examiner_last_name, examiner_first_name</td></tr>
-              <tr><td>Candidate</td><td>candidate_id, candidate_last_name, candidate_first_name</td></tr>
-            </table>
+            <strong>Erkannte Identitaetsspalten (Gross-/Kleinschreibung egal):</strong>
+            <p style="margin:.4rem 0;font-size:.7rem;color:var(--text2);">Alle passenden Spalten werden verarbeitet, auch mehrere je Typ. Eine Endung nach einem Punkt (.x, .y aus R-Merges) wird ignoriert.</p>
+            <table style="margin-top:.5rem;" id="infoTable"></table>
           </div>
         </div>
       </div>
@@ -286,7 +288,8 @@ td.changed { background: var(--orange-bg); }
   <div class="card hidden" id="resultCard">
     <div class="card-title">Ergebnis</div>
     <div class="stats" id="statsRow"></div>
-    <div style="margin-top:.75rem;">
+    <div id="resultProblems" class="notice hidden"></div>
+    <div style="margin-top:.75rem;" id="dlRow">
       <button class="dl-btn" id="dlBtn" onclick="downloadResult()">&#11015; Herunterladen</button>
       <span id="dlName" style="margin-left:.5rem;font-size:.85rem;color:var(--text2);"></span>
     </div>
@@ -312,135 +315,139 @@ td.changed { background: var(--orange-bg); }
 
   <!-- History -->
   <div class="card" id="historyCard">
-    <div class="card-title">Verlauf</div>
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">Verlauf
+      <button class="file-action-btn hidden" id="historyClear" onclick="clearHistory()">Verlauf loeschen</button></div>
     <div id="historyList"><span style="font-size:.82rem;color:var(--text2);">Noch keine Verarbeitungen.</span></div>
   </div>
 </div>
 
 <script>
+if (typeof XLSX === 'undefined' || typeof JSZip === 'undefined') document.getElementById('libNotice').classList.remove('hidden');
 // ================= STATE =================
-let fileQueue = [];         // [{name, type, raw, encoding, bomLength, parsed, detectedSep}]
+let fileQueue = [];         // [{name, type, raw, encoding, bomLength, sep, parsed, sourceZip}]
 let activeFileIdx = 0;      // Currently previewed file index
 let currentMode = 'encrypt';
-let batchResults = [];      // [{blob, name, totalCells, sheetsProcessed, sheetsSkipped, resultSheets}]
+let batchResults = [];      // je Datei in fileQueue: {ok, name, blob, cells, failed, sheets, error}
 let batchZipName = '';      // Name des ZIP-Downloads, beim Verarbeiten festgelegt
 let activeSheet = 0;
 let compareView = 'orig';
-let customCols = new Set();  // User-selected extra columns to encrypt
+let customCols = new Set();  // User-selected extra columns to process
+let loadNotices = [];        // Meldungen zu Dateien, die nicht geladen wurden
 
-// ================= COLUMN ALIASES (identical to pseudonym.py) =================
-const COLUMN_ALIASES = {
-  familienname: ["FAMILIENNAME","Familienname","familienname","Zuname","zuname","ZUNAME",
-    "Nachname","nachname","NACHNAME",
-    "Last Name","LastName","Last name","Lastname","Surname","surname",
-    "Family Name","Family_Name",
-    "FAMILY_NAME_OF_STUDENT","Family_Name_of_Student",
-    "Familienname oder Nachname","Familien- oder Nachname"],
-  vorname: ["VORNAME","Vorname","vorname",
-    "First Name","FirstName","Firstname","First name",
-    "Given Name","GivenName","Given name","Rufname",
-    "FIRST_NAME_OF_STUDENT","First_Name_of_Student"],
-  matnr: ["MATRIKELNUMMER","Matrikelnummer","matrikelnummer","Matnr","matnr","MATNR",
-    "MatrNr","Matrikel","matrikel","MATRIKEL","Matrikelnr","Matrikelnr.",
-    "Mat.Nr.","Mat.Nr","Mat-Nr.","Mat-Nr","Mat. Nr.",
-    "StudentID","Student_ID","Student ID",
-    "REGISTRATION_NUMBER","Registration_Number","Registration Number",
-    "ID number","ID Number","ID-Nummer","Kennnummer"],
-  email: ["EMAIL_ADDRESS","Email_Address","E-Mail","E-MAIL","e-mail","Email","email",
-    "EMAIL","Mail","MAIL","mail","E_MAIL","EmailAddress","email_address",
-    "E-Mail-Adresse","E-Mail Adresse","Emailadresse","Mailadresse",
-    "Email address","Email Address",
-    "E-Mail des Teilnehmers","Attendee Email"],
-  pruefer: ["Examiner","EXAMINER","examiner","Prüfer","PRÜFER","prüfer",
-    "Pruefer","PRUEFER","pruefer","Prufer","PRUFER",
-    "Prüfer/in","PrüferIn","Prüfer:in"],
-  anzeigename: ["Anzeigename","ANZEIGENAME","anzeigename",
-    "Display Name","DisplayName","DISPLAY NAME","display name",
-    "Full Name","FullName","Student Name"],
-  svnr: ["Sozialversicherungsnummer","SOZIALVERSICHERUNGSNUMMER",
-    "SVNr","SVNR","SV-Nr","SV-Nr.","SV-Nummer","SV Nummer",
-    "Versicherungsnummer","Social Security Number","SSN"],
-  geburtsdatum: ["Geburtsdatum","GEBURTSDATUM","Geburtstag","GEBURTSTAG",
-    "Geb.Datum","Geb.-Datum","GebDatum","Geb. Datum",
-    "Birthday","Date of Birth","DateOfBirth","DOB",
-    "Birth Date","BirthDate","Birthdate"],
-  telefon: ["Telefon","TELEFON","Telefonnummer","TELEFONNUMMER",
-    "Tel","Tel.","Tel.Nr.","TelNr",
-    "Phone","Phone Number","PhoneNumber",
-    "Handy","Handynummer","Mobilnummer","Mobile",
-    "Mobiltelefon","Cell","Cell Phone"],
-  // Valuatic Pruefungssoftware
-  examiner_id: ["examiner_id","Examiner_ID","EXAMINER_ID"],
-  examiner_nachname: ["examiner_last_name","Examiner_Last_Name","EXAMINER_LAST_NAME"],
-  examiner_vorname: ["examiner_first_name","Examiner_First_Name","EXAMINER_FIRST_NAME"],
-  candidate_id: ["candidate_id","Candidate_ID","CANDIDATE_ID"],
-  candidate_nachname: ["candidate_last_name","Candidate_Last_Name","CANDIDATE_LAST_NAME"],
-  candidate_vorname: ["candidate_first_name","Candidate_First_Name","CANDIDATE_FIRST_NAME"]
+const MODES = {
+  encrypt:   { suffix: '_pseudo',   label: 'Pseudonymisierung',    button: 'Pseudonymisieren',    result: 'Pseudonymisiert',   short: 'Verschluesselt',  cls: 'enc' },
+  decrypt:   { suffix: '_restored', label: 'De-Pseudonymisierung', button: 'De-Pseudonymisieren', result: 'Wiederhergestellt', short: 'Entschluesselt',  cls: 'dec' },
+  anonymize: { suffix: '_anonym',   label: 'Anonymisierung',       button: 'Anonymisieren',       result: 'Anonymisiert',      short: 'Anonymisiert',    cls: 'anon' },
 };
-const NAME_ALIASES = ["NAME","Name","name"];
+
+// Meldung, die Anwender:innen ohne Technikwissen verstehen
+class UserError extends Error {}
+
+// ================= COLUMN DETECTION =================
+// Der Vergleich ignoriert Gross-/Kleinschreibung, daher steht jede Schreibweise nur einmal hier.
+// MUSS mit COLUMN_ALIASES in pseudonym.py uebereinstimmen (tests/test_consistency.py).
+const COLUMN_ALIASES = {
+  familienname: ["Familienname", "Zuname", "Nachname", "Last Name", "LastName", "Surname",
+                 "Family Name", "Family_Name", "FAMILY_NAME_OF_STUDENT",
+                 "Familienname oder Nachname", "Familien- oder Nachname"],
+  vorname:      ["Vorname", "First Name", "FirstName", "Given Name", "GivenName", "Rufname",
+                 "FIRST_NAME_OF_STUDENT"],
+  matnr:        ["Matrikelnummer", "Matnr", "MatrNr", "Matrikel", "Matrikelnr", "Matrikelnr.",
+                 "Mat.Nr.", "Mat.Nr", "Mat-Nr.", "Mat-Nr", "Mat. Nr.",
+                 "StudentID", "Student_ID", "Student ID",
+                 "REGISTRATION_NUMBER", "Registration Number",
+                 "ID number", "ID-Nummer", "Kennnummer"],
+  email:        ["EMAIL_ADDRESS", "E-Mail", "Email", "Mail", "E_MAIL", "EmailAddress",
+                 "E-Mail-Adresse", "E-Mail Adresse", "Emailadresse", "Mailadresse",
+                 "Email address", "E-Mail des Teilnehmers", "Attendee Email"],
+  pruefer:      ["Examiner", "Prüfer", "Pruefer", "Prufer", "Prüfer/in", "PrüferIn", "Prüfer:in"],
+  anzeigename:  ["Anzeigename", "Display Name", "DisplayName", "Full Name", "FullName",
+                 "Student Name"],
+  svnr:         ["Sozialversicherungsnummer", "SVNr", "SV-Nr", "SV-Nr.", "SV-Nummer", "SV Nummer",
+                 "Versicherungsnummer", "Social Security Number", "SSN"],
+  geburtsdatum: ["Geburtsdatum", "Geburtstag", "Geb.Datum", "Geb.-Datum", "GebDatum", "Geb. Datum",
+                 "Birthday", "Date of Birth", "DateOfBirth", "DOB", "Birth Date", "BirthDate"],
+  telefon:      ["Telefon", "Telefonnummer", "Tel", "Tel.", "Tel.Nr.", "TelNr",
+                 "Phone", "Phone Number", "PhoneNumber",
+                 "Handy", "Handynummer", "Mobilnummer", "Mobile", "Mobiltelefon",
+                 "Cell", "Cell Phone"],
+  // Valuatic Pruefungssoftware: eigene Keys, da examiner + candidate
+  // in derselben Datei vorkommen und unabhaengig verschluesselt werden muessen
+  examiner_id:        ["examiner_id"],
+  examiner_nachname:  ["examiner_last_name"],
+  examiner_vorname:   ["examiner_first_name"],
+  candidate_id:       ["candidate_id"],
+  candidate_nachname: ["candidate_last_name"],
+  candidate_vorname:  ["candidate_first_name"],
+};
+const NAME_ALIASES = ["Name"];
+
+const ALIAS_LOOKUP = new Map();
+for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) for (const a of aliases) ALIAS_LOOKUP.set(a.toLowerCase(), key);
+const NAME_LOOKUP = new Set(NAME_ALIASES.map(a => a.toLowerCase()));
+
+// Leerraum am Zellrand. Bewusst ausgeschrieben, damit Python und JavaScript gleich arbeiten.
+const EDGES_RE = /^([\t\n\x0b\x0c\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*)([\s\S]*?)([\t\n\x0b\x0c\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*)$/;
 const SUFFIX_RE = /\.[a-zA-Z0-9_]+$/;
+
+// Teilt in [Leerraum davor, Kern, Leerraum danach]
+function splitEdges(text) { const m = EDGES_RE.exec(text); return [m[1], m[2], m[3]]; }
+function stripWs(text) { return splitEdges(text)[1]; }
+// Entfernt eine Endung nach dem letzten Punkt (.x, .y, .1 aus R-Merges)
 function normalizeHeader(h) { return h.replace(SUFFIX_RE, ''); }
 
-function findIdentityCols(headers) {
-  const lower = {};
-  headers.forEach(h => { if (h) lower[h.trim().toLowerCase()] = h; });
-  const norm = {};
-  headers.forEach(h => { if (h) norm[normalizeHeader(h.trim()).toLowerCase()] = h; });
-  const found = {};
-  for (const [canon, aliases] of Object.entries(COLUMN_ALIASES)) {
-    for (const a of aliases) {
-      const al = a.toLowerCase();
-      if (al in lower) { found[canon] = lower[al]; break; }
-      if (al in norm) { found[canon] = norm[al]; break; }
+// Art einer Spalte: kanonischer Schluessel, '_name', '_custom' oder null
+function columnKind(header, extraLower) {
+  const h = stripWs(header == null ? '' : String(header));
+  if (!h) return null;
+  const candidates = [h.toLowerCase(), normalizeHeader(h).toLowerCase()];
+  for (const c of candidates) if (ALIAS_LOOKUP.has(c)) return ALIAS_LOOKUP.get(c);
+  for (const c of candidates) if (NAME_LOOKUP.has(c)) return '_name';
+  return extraLower && extraLower.includes(candidates[0]) ? '_custom' : null;
+}
+
+// Welche Spalten einer Kopfzeile verarbeitet werden.
+// Alle passenden Spalten zaehlen, auch mehrere je Typ (Telefon und Handy).
+function columnPlan(headers, extraCols) {
+  const extras = (extraCols || []).filter(c => stripWs(c));
+  const extraLower = extras.map(c => stripWs(c).toLowerCase());
+  const hs = headers.map(h => h == null ? '' : String(h));
+  const kinds = hs.map(h => columnKind(h, extraLower));
+  const pick = test => kinds.map((k, i) => test(k) ? i : -1).filter(i => i >= 0);
+  const present = new Set(hs.map(h => stripWs(h).toLowerCase()));
+  const plan = {
+    headers: hs, kinds,
+    names: pick(k => k === '_name'),
+    cells: pick(k => k && k !== '_name'),
+    fam: pick(k => k === 'familienname'),
+    vor: pick(k => k === 'vorname'),
+    targets: pick(k => !!k).map(i => [i, kinds[i] === '_name']),   // [Spaltenindex, ist Name-Spalte]
+    missingExtra: extras.filter(c => !present.has(stripWs(c).toLowerCase())),
+  };
+  plan.score = plan.targets.length;
+  plan.describe = () => plan.targets.map(([i]) => stripWs(hs[i])).join(', ');
+  return plan;
+}
+
+// Kopfzeile: die Zeile mit den meisten erkannten Spalten unter den ersten maxScan Zeilen.
+// Bei Gleichstand gewinnt die Zeile mit mehr gefuellten Zellen, dann die fruehere.
+function findHeaderRow(rows, maxScan = 20, extraCols) {
+  let best = 0, bestScore = 0, bestFilled = 0;
+  for (let i = 0; i < Math.min(rows.length, maxScan); i++) {
+    const headers = rows[i].map(c => c == null ? '' : String(c));
+    const score = columnPlan(headers, extraCols).score;
+    const filled = headers.filter(h => stripWs(h)).length;
+    if (score && (score > bestScore || (score === bestScore && filled > bestFilled))) {
+      best = i; bestScore = score; bestFilled = filled;
     }
   }
-  return found;
-}
-function findNameCol(headers) {
-  const lower = {};
-  headers.forEach(h => { if (h) lower[h.trim().toLowerCase()] = h; });
-  for (const a of NAME_ALIASES) {
-    if (a.toLowerCase() in lower) return lower[a.toLowerCase()];
-  }
-  return null;
-}
-function findHeaderRow(rows, maxScan = 20) {
-  for (let i = 0; i < Math.min(rows.length, maxScan); i++) {
-    const headers = rows[i].map(c => c == null ? '' : String(c).trim());
-    if (Object.keys(findIdentityCols(headers)).length > 0) return i;
-  }
-  return 0;
+  return best;
 }
 
 // ================= CRYPTO (Web Crypto API — identical to pseudonym.py) =================
 const SALT = new TextEncoder().encode('MedUniWien-Pseudo-Salt');
 const PBKDF2_ITERATIONS = 100000;
-
-async function deriveKey(secret) {
-  const raw = new TextEncoder().encode(secret);
-  const baseKey = await crypto.subtle.importKey('raw', raw, 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: SALT, iterations: PBKDF2_ITERATIONS }, baseKey, 256);
-  return new Uint8Array(bits);
-}
-
-async function hmacSha256(key, data) {
-  const hmacKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', hmacKey, new TextEncoder().encode(data));
-  return new Uint8Array(sig);
-}
-
-function pkcs7Pad(data) {
-  const padLen = 16 - (data.length % 16);
-  const padded = new Uint8Array(data.length + padLen);
-  padded.set(data);
-  padded.fill(padLen, data.length);
-  return padded;
-}
-function pkcs7Unpad(data) {
-  const padLen = data[data.length - 1];
-  if (padLen < 1 || padLen > 16) throw new Error('Invalid padding');
-  return data.slice(0, data.length - padLen);
-}
+const TOKEN_RE = /^[A-Za-z0-9_-]{43,}$/;
 
 function b64urlEncode(buf) {
   let s = '';
@@ -456,45 +463,145 @@ function b64urlDecode(s) {
   return buf;
 }
 
-async function encryptValue(keyBytes, plaintext) {
-  if (!plaintext) return plaintext;
-  const iv = (await hmacSha256(keyBytes, plaintext)).slice(0, 16);
-  const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt']);
-  // Web Crypto adds PKCS7 padding automatically
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, aesKey, new TextEncoder().encode(plaintext)));
-  const raw = new Uint8Array(iv.length + ct.length);
-  raw.set(iv); raw.set(ct, iv.length);
-  return b64urlEncode(raw);
+// Leitet den Schluessel ab und importiert ihn einmal (nicht pro Zelle).
+// PBKDF2-HMAC-SHA256, 100k Runden -> AES-256-CBC, IV = HMAC-SHA256(key, Klartext)[:16]
+async function createCipher(secret) {
+  const utf8 = new TextEncoder();
+  const strict = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+  const baseKey = await crypto.subtle.importKey('raw', utf8.encode(secret), 'PBKDF2', false, ['deriveBits']);
+  const keyBytes = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: SALT, iterations: PBKDF2_ITERATIONS }, baseKey, 256));
+  const hmacKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']);
+  const ivFor = async data => new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, data)).slice(0, 16);
+
+  return {
+    async encrypt(plaintext) {
+      if (!plaintext) return plaintext;
+      const data = utf8.encode(plaintext);
+      const iv = await ivFor(data);
+      // Web Crypto adds PKCS7 padding automatically
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, aesKey, data));
+      const raw = new Uint8Array(iv.length + ct.length);
+      raw.set(iv); raw.set(ct, iv.length);
+      return b64urlEncode(raw);
+    },
+    // Gibt null zurueck, wenn token kein Pseudonym fuer diesen Key ist (Klartext, beschaedigter
+    // Wert oder falsches Secret). Exakt: Der IV im Pseudonym muss HMAC(key, Klartext)[:16] sein.
+    async tryDecrypt(token) {
+      if (!token || !TOKEN_RE.test(token) || token.length % 4 === 1) return null;
+      let raw;
+      try { raw = b64urlDecode(token); } catch { return null; }
+      if (raw.length < 32 || raw.length % 16) return null;
+      const iv = raw.slice(0, 16);
+      let data;
+      try { data = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, raw.slice(16))); }
+      catch { return null; }
+      const expected = await ivFor(data);
+      if (!expected.every((b, i) => b === iv[i])) return null;
+      try { return strict.decode(data); } catch { return null; }
+    },
+    async decrypt(token) {
+      const plain = await this.tryDecrypt(token);
+      return plain === null ? token : plain;
+    },
+  };
 }
 
-async function decryptValue(keyBytes, token) {
-  if (!token) return token;
-  let raw;
-  try { raw = b64urlDecode(token); } catch { return token; }
-  if (raw.length < 32) return token;
-  const iv = raw.slice(0, 16);
-  const ct = raw.slice(16);
-  try {
-    const aesKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-    const dec = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ct));
-    return new TextDecoder().decode(dec);
-  } catch { return token; }
+// Verarbeitet einzelne Zellen und zaehlt mit (wie _Worker in pseudonym.py)
+function createWorker(cipher, mode) {
+  const w = {
+    cells: 0,     // verarbeitete Zellen
+    failed: 0,    // decrypt: Zellen ohne gueltiges Pseudonym (unveraendert)
+    already: 0,   // encrypt: Zellen, die schon ein Pseudonym dieses Secrets waren
+
+    // Neuer Zellinhalt. Leerraum am Rand bleibt ausserhalb des Pseudonyms erhalten.
+    async cell(text) {
+      const [lead, core, trail] = splitEdges(text);
+      if (!core) return text;
+      if (mode === 'anonymize') { w.cells++; return ''; }
+      if (mode === 'encrypt') {
+        if (await cipher.tryDecrypt(core) !== null) w.already++;
+        w.cells++;
+        return lead + await cipher.encrypt(core) + trail;
+      }
+      const plain = await cipher.tryDecrypt(core);
+      if (plain === null) { w.failed++; return text; }
+      w.cells++;
+      return lead + plain + trail;
+    },
+
+    // Name-Spalte. Besteht der Wert in DIESER Zeile aus Familienname und Vorname, wird er aus
+    // den beiden Pseudonymen zusammengesetzt (Reihenfolge bleibt). Sonst: ganzer Wert ein Pseudonym.
+    async nameCell(text, famValues, vorValues) {
+      const [lead, core, trail] = splitEdges(text);
+      if (!core || mode === 'anonymize') return w.cell(text);
+      if (mode === 'encrypt') {
+        for (const f of famValues) for (const v of vorValues) {
+          if (!f || !v) continue;
+          const parts = core === f + ' ' + v ? [f, v] : core === v + ' ' + f ? [v, f] : null;
+          if (parts) { w.cells++; return lead + await cipher.encrypt(parts[0]) + ' ' + await cipher.encrypt(parts[1]) + trail; }
+        }
+        return w.cell(text);
+      }
+      const parts = core.split(' ');
+      if (parts.length === 2) {
+        const a = await cipher.tryDecrypt(parts[0]), b = await cipher.tryDecrypt(parts[1]);
+        if (a !== null && b !== null) { w.cells++; return lead + a + ' ' + b + trail; }
+      }
+      return w.cell(text);
+    },
+
+    // Nach dem Durchlauf: falsches Secret erkennen
+    check() {
+      if (mode === 'decrypt' && w.cells === 0 && w.failed > 0) throw new UserError(
+        'Kein Wert konnte entschluesselt werden. Das Secret ist vermutlich falsch, oder die Datei ist nicht pseudonymisiert. Es wurde keine Datei erzeugt.');
+    },
+    warnings() {
+      const out = [];
+      if (w.failed) out.push(`${w.failed} Zelle(n) enthalten kein gueltiges Pseudonym fuer dieses Secret und bleiben unveraendert.`);
+      if (w.already) out.push(`${w.already} Zelle(n) waren bereits mit diesem Secret pseudonymisiert und wurden ein zweites Mal verschluesselt. Ist das die falsche Datei?`);
+      return out;
+    },
+  };
+  return w;
 }
 
-// ================= ENCODING DETECTION =================
+function noColumnsMessage(headers) {
+  const shown = headers.map(h => stripWs(h)).filter(h => h).join(', ') || '(keine)';
+  return `Keine Spalten mit Personendaten erkannt. Es wurde keine Datei erzeugt. Vorhandene Spalten: ${shown}. Weitere Spalten lassen sich in der Vorschau anklicken.`;
+}
+
+// ================= ENCODING =================
+
+const UTF8_BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
 
 function detectEncoding(buffer) {
   const b = new Uint8Array(buffer);
   if (b.length >= 2 && b[0] === 0xFF && b[1] === 0xFE) return { encoding: 'utf-16le', bomLength: 2 };
   if (b.length >= 2 && b[0] === 0xFE && b[1] === 0xFF) return { encoding: 'utf-16be', bomLength: 2 };
   if (b.length >= 3 && b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) return { encoding: 'utf-8', bomLength: 3 };
+  // UTF-16 ohne BOM: an der Verteilung der Null-Bytes erkennbar
+  const sample = b.subarray(0, 4096);
+  if (sample.length >= 4 && b.length % 2 === 0) {
+    const half = sample.length >> 1;
+    let even = 0, odd = 0;
+    for (let i = 0; i < half; i++) { if (sample[2 * i] === 0) even++; if (sample[2 * i + 1] === 0) odd++; }
+    if (odd * 10 > half * 4 && even * 20 < half) return { encoding: 'utf-16le', bomLength: 0 };
+    if (even * 10 > half * 4 && odd * 20 < half) return { encoding: 'utf-16be', bomLength: 0 };
+  }
   // Ohne BOM: kein gueltiges UTF-8 -> Windows-1252 (ANSI-Exporte, z.B. MedCampus/Excel)
   try { new TextDecoder('utf-8', { fatal: true }).decode(b); }
   catch { return { encoding: 'windows-1252', bomLength: 0 }; }
   return { encoding: 'utf-8', bomLength: 0 };
 }
 
+function decodeText(fobj) {
+  return new TextDecoder(fobj.encoding, { ignoreBOM: true }).decode(new Uint8Array(fobj.raw, fobj.bomLength));
+}
+
 let cp1252EncodeMap = null;
+class EncodeError extends Error {}
 
 function encodeCp1252(text) {
   if (!cp1252EncodeMap) {
@@ -508,7 +615,7 @@ function encodeCp1252(text) {
     const code = text.charCodeAt(i);
     if (code < 0x80) { out[i] = code; continue; }
     const byte = cp1252EncodeMap.get(text[i]);
-    if (byte === undefined) throw new Error(`Zeichen "${text[i]}" ist in Windows-1252 nicht darstellbar`);
+    if (byte === undefined) throw new EncodeError(`Zeichen "${text[i]}" ist in Windows-1252 nicht darstellbar`);
     out[i] = byte;
   }
   return out;
@@ -521,160 +628,453 @@ function encodeText(text, encoding) {
   const buf = new ArrayBuffer(text.length * 2);
   const view = new DataView(buf);
   const le = encoding === 'utf-16le';
-  for (let i = 0; i < text.length; i++) {
-    view.setUint16(i * 2, text.charCodeAt(i), le);
-  }
+  for (let i = 0; i < text.length; i++) view.setUint16(i * 2, text.charCodeAt(i), le);
   return new Uint8Array(buf);
+}
+
+// ================= CSV =================
+
+const SEPARATORS = [';', ',', '\t'];
+
+// Zerlegt CSV-Text in Zeilen aus Feldern, ohne den Text zu veraendern. Jedes Feld ist
+// [Anfang, Ende, in Anfuehrungszeichen]. So lassen sich einzelne Zellen ersetzen, waehrend
+// alles andere Zeichen fuer Zeichen erhalten bleibt. Derselbe Algorithmus: scan_csv in pseudonym.py.
+function scanCsv(text, sep, maxRecords) {
+  const n = text.length, records = [];
+  let fields = [], i = 0;
+  if (n === 0) return records;
+  for (;;) {
+    const start = i;
+    const quoted = i < n && text[i] === '"';
+    if (quoted) {
+      i++;
+      while (i < n) {
+        if (text[i] === '"') {
+          if (i + 1 < n && text[i + 1] === '"') { i += 2; continue; }
+          i++;
+          break;
+        }
+        i++;
+      }
+    }
+    while (i < n && text[i] !== sep && text[i] !== '\n' && text[i] !== '\r') i++;
+    fields.push([start, i, quoted]);
+    if (i >= n) { records.push(fields); return records; }
+    if (text[i] === sep) { i++; continue; }
+    i += text[i] === '\r' && i + 1 < n && text[i + 1] === '\n' ? 2 : 1;
+    records.push(fields);
+    fields = [];
+    if (i >= n || (maxRecords && records.length >= maxRecords)) return records;
+  }
+}
+
+// Inhalt eines Feldes ohne Anfuehrungszeichen
+function fieldValue(text, field) {
+  const raw = text.slice(field[0], field[1]);
+  if (!field[2]) return raw;
+  let out = '', j = 1;
+  while (j < raw.length) {
+    if (raw[j] === '"') {
+      if (j + 1 < raw.length && raw[j + 1] === '"') { out += '"'; j += 2; continue; }
+      j++;
+      break;
+    }
+    out += raw[j];
+    j++;
+  }
+  return out + raw.slice(j);
+}
+
+// Schreibweise eines neuen Feldinhalts. Anfuehrungszeichen bleiben, wo sie waren,
+// und kommen dazu, wo der Inhalt sie braucht.
+function csvField(value, quoted, sep) {
+  if (quoted || value.includes(sep) || value.includes('\n') || value.includes('\r') || value[0] === '"') {
+    return '"' + value.replace(/"/g, '""') + '"';
+  }
+  return value;
+}
+
+// Waehlt das Trennzeichen, mit dem die Kopfzeile die meisten erkannten Spalten hat
+function detectSeparator(text, extraCols) {
+  let bestSep = null, bestScore = 0, bestWidth = 0;
+  for (const sep of SEPARATORS) {
+    const rows = scanCsv(text, sep, 20).map(rec => rec.map(f => fieldValue(text, f)));
+    if (!rows.length) continue;
+    const header = rows[findHeaderRow(rows, 20, extraCols)];
+    const score = columnPlan(header, extraCols).score;
+    if (score && (score > bestScore || (score === bestScore && header.length > bestWidth))) {
+      bestSep = sep; bestScore = score; bestWidth = header.length;
+    }
+  }
+  if (bestSep) return bestSep;
+  // Keine Spalte erkannt: das haeufigste Trennzeichen in den ersten 20 Zeilen
+  const lines = text.slice(0, 20000).split(/\r\n|\r|\n/).filter(l => stripWs(l)).slice(0, 20);
+  let best = ',', bestCount = 0;
+  for (const sep of SEPARATORS) {
+    const count = lines.reduce((sum, l) => sum + l.split(sep).length - 1, 0);
+    if (count > bestCount) { best = sep; bestCount = count; }
+  }
+  return best;
+}
+
+const pause = () => new Promise(r => setTimeout(r, 0));
+
+async function processCsv(fq, mode, cipher, extraCols) {
+  const rawBytes = new Uint8Array(fq.raw);
+  const text = decodeText(fq);
+  if (!stripWs(text)) throw new UserError('Die Datei ist leer.');
+  const sep = fq.sep;
+  const records = scanCsv(text, sep);
+
+  // Kopfzeile finden (kann nach Metadaten-Zeilen liegen, z.B. MLW-Export)
+  const headRows = records.slice(0, 20).map(rec => rec.map(f => fieldValue(text, f)));
+  const headerIdx = findHeaderRow(headRows, 20, extraCols);
+  const plan = columnPlan(headRows[headerIdx], extraCols);
+  if (!plan.score) throw new UserError(noColumnsMessage(plan.headers));
+
+  // Nur die betroffenen Felder ersetzen. Der uebrige Text (Metadaten-Zeilen, Zeilenenden,
+  // Anfuehrungszeichen, Leerzeilen, ueberzaehlige Zellen) bleibt byte-genau erhalten.
+  const worker = createWorker(cipher, mode);
+  const out = [];
+  let pos = 0, longRows = 0;
+  for (let ri = headerIdx + 1; ri < records.length; ri++) {
+    const rec = records[ri], n = rec.length;
+    if (n > plan.headers.length) longRows++;
+    let fam = [], vor = [];
+    if (plan.names.length) {
+      fam = plan.fam.filter(i => i < n).map(i => stripWs(fieldValue(text, rec[i])));
+      vor = plan.vor.filter(i => i < n).map(i => stripWs(fieldValue(text, rec[i])));
+    }
+    for (const [i, isName] of plan.targets) {
+      if (i >= n) break;
+      const field = rec[i];
+      const old = fieldValue(text, field);
+      const neu = isName ? await worker.nameCell(old, fam, vor) : await worker.cell(old);
+      if (neu !== old) { out.push(text.slice(pos, field[0]), csvField(neu, field[2], sep)); pos = field[1]; }
+    }
+    if (ri % 500 === 0) await pause();
+  }
+  out.push(text.slice(pos));
+  const outputText = out.join('');
+  worker.check();
+
+  const warnings = worker.warnings();
+  if (plan.missingExtra.length) warnings.push('Zusatzspalte(n) nicht gefunden: ' + plan.missingExtra.join(', '));
+  if (longRows) warnings.push(`${longRows} Zeile(n) haben mehr Zellen als die Kopfzeile. Dort koennen Werte in einer falschen Spalte stehen und unveraendert bleiben. Bitte pruefen.`);
+  if (headerIdx > 0 && mode === 'anonymize') warnings.push(`${headerIdx} Zeile(n) vor der Kopfzeile bleiben unveraendert. Bitte pruefen, ob dort Namen stehen.`);
+
+  let bom = rawBytes.slice(0, fq.bomLength), data, encoding = fq.encoding;
+  try { data = encodeText(outputText, encoding); }
+  catch (e) {
+    if (!(e instanceof EncodeError)) throw e;
+    // Zurueckgefuehrter Wert passt nicht in die Kodierung der Eingabe (z.B. Windows-1252)
+    bom = UTF8_BOM; data = new TextEncoder().encode(outputText); encoding = 'utf-8';
+    warnings.push('Ein Wert passt nicht in die Kodierung der Eingabe. Die Ausgabe ist UTF-8 mit BOM.');
+  }
+  // Reine ASCII-Eingabe (z.B. Pseudonym-Datei), Ausgabe mit Umlauten: Original-Kodierung
+  // nicht bestimmbar -> UTF-8 mit BOM, damit Excel die Umlaute korrekt anzeigt
+  if (encoding === 'utf-8' && fq.bomLength === 0 && rawBytes.every(b => b < 0x80) && /[^\x00-\x7F]/.test(outputText)) bom = UTF8_BOM;
+
+  const info = [`Spalten: ${plan.describe()}`];
+  if (headerIdx > 0) info.push(`${headerIdx} Zeile(n) vor der Kopfzeile (unveraendert)`);
+  if (bom.length && fq.bomLength === 0) info.push('Ausgabe als UTF-8 mit BOM, damit Excel Umlaute richtig zeigt');
+  const top = scanCsv(outputText, sep, 40).map(rec => rec.map(f => fieldValue(outputText, f)));
+  return { blob: new Blob([bom, data], { type: 'text/csv' }), worker, warnings, info,
+           sheets: [{ name: fq.name, top, totalRows: records.length }] };
+}
+
+// ================= XLSX =================
+
+function readWorkbook(raw) {
+  const unreadable = () => new UserError('Die Datei ist keine lesbare Excel-Datei (.xlsx/.xlsm). Moegliche Ursachen: Die Datei ist mit einem Kennwort geschuetzt, beschaedigt oder im alten .xls-Format. Bitte in Excel ohne Kennwort als .xlsx speichern.');
+  // .xlsx/.xlsm sind ZIP-Archive ("PK"). Ohne diese Pruefung liest SheetJS beliebige Bytes als Text.
+  const b = new Uint8Array(raw, 0, Math.min(2, raw.byteLength));
+  if (b.length < 2 || b[0] !== 0x50 || b[1] !== 0x4B) throw unreadable();
+  // cellNF: Zahlenformate behalten; cellStyles: Spaltenbreiten behalten;
+  // sheetStubs: Formeln ohne gespeichertes Ergebnis behalten
+  try { return XLSX.read(raw, { type: 'array', cellNF: true, cellStyles: true, sheetStubs: true }); }
+  catch (e) { throw unreadable(); }
+}
+
+function is1904(wb) { return !!(wb.Workbook && wb.Workbook.WBProps && wb.Workbook.WBProps.date1904); }
+
+// Datum als Text, wie openpyxl es liefert: "2000-01-31 00:00:00" (reine Uhrzeit: "12:30:00")
+function dateText(v, date1904) {
+  const p2 = n => String(n).padStart(2, '0');
+  const timePart = ms => {
+    const s = Math.floor(ms / 1000), frac = ms % 1000;
+    return `${p2(Math.floor(s / 3600))}:${p2(Math.floor(s % 3600 / 60))}:${p2(s % 60)}` + (frac ? '.' + String(frac * 1000).padStart(6, '0') : '');
+  };
+  let day = Math.floor(v);
+  const ms = Math.round((v - day) * 86400000);
+  if (v >= 0 && v < 1 && ms < 86400000) return timePart(ms);
+  if (!date1904 && v > 0 && v < 60) day += 1;
+  const total = (date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30)) + day * 86400000 + ms;
+  const d = new Date(total);
+  const msOfDay = ((total % 86400000) + 86400000) % 86400000;
+  return `${String(d.getUTCFullYear()).padStart(4, '0')}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())} ${timePart(msOfDay)}`;
+}
+
+// Textform eines Zellwerts. Diese Form wird verschluesselt (wie cell_text in pseudonym.py).
+function cellText(cell, date1904) {
+  if (!cell || cell.v == null || cell.t === 'z') return '';
+  if (cell.t === 's') return String(cell.v);
+  if (cell.t === 'b') return cell.v ? 'True' : 'False';
+  if (cell.t === 'e') return cell.w != null ? String(cell.w) : '#ERR';
+  if (cell.t === 'n' && cell.z && XLSX.SSF.is_date(String(cell.z))) return dateText(cell.v, date1904);
+  return String(cell.v);
+}
+
+// Groesse eines Blatts ab A1 (wie max_row/max_column in openpyxl)
+function sheetDim(ws) {
+  if (!ws || ws['!type'] === 'chart' || !ws['!ref']) return { rows: 0, cols: 0 };
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  return { rows: range.e.r + 1, cols: range.e.c + 1 };
+}
+
+function sheetRows(ws, fromRow, toRow, cols, date1904) {
+  const colNames = [];
+  for (let c = 0; c < cols; c++) colNames.push(XLSX.utils.encode_col(c));
+  const rows = [];
+  for (let r = fromRow; r < toRow; r++) rows.push(colNames.map(cn => cellText(ws[cn + (r + 1)], date1904)));
+  return rows;
+}
+
+function sheetTop(name, ws, date1904) {
+  const dim = sheetDim(ws);
+  return { name, top: sheetRows(ws, 0, Math.min(dim.rows, 40), dim.cols, date1904), totalRows: dim.rows };
+}
+
+async function processXlsx(fq, mode, cipher, extraCols) {
+  // Die Arbeitsmappe bleibt erhalten; nur die betroffenen Zellen werden ersetzt.
+  // So behalten alle anderen Zellen Typ, Zahlenformat und Formel.
+  const wb = readWorkbook(fq.raw);
+  const date1904 = is1904(wb);
+  const worker = createWorker(cipher, mode);
+  const processed = [], skipped = [];
+  let warnings = [], missingExtra = null;
+
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    const dim = sheetDim(ws);
+    const head = sheetRows(ws, 0, Math.min(dim.rows, 20), dim.cols, date1904);
+    if (!head.some(row => row.some(c => stripWs(c)))) { skipped.push(`${name} (leer)`); continue; }
+
+    const headerIdx = findHeaderRow(head, 20, extraCols);
+    const plan = columnPlan(head[headerIdx], extraCols);
+    missingExtra = missingExtra === null ? plan.missingExtra : missingExtra.filter(c => plan.missingExtra.includes(c));
+    if (!plan.score) {
+      skipped.push(`${name} (keine Spalten mit Personendaten erkannt: ${plan.headers.map(h => stripWs(h)).filter(h => h).join(', ')})`);
+      continue;
+    }
+
+    const before = worker.cells;
+    const colName = i => XLSX.utils.encode_col(i);
+    const famCols = plan.fam.map(colName), vorCols = plan.vor.map(colName);
+    const targets = plan.targets.map(([i, isName]) => [colName(i), isName]);
+    for (let r = headerIdx + 1; r < dim.rows; r++) {
+      const rowNo = r + 1;
+      let fam = [], vor = [];
+      if (plan.names.length) {
+        fam = famCols.map(cn => stripWs(cellText(ws[cn + rowNo], date1904)));
+        vor = vorCols.map(cn => stripWs(cellText(ws[cn + rowNo], date1904)));
+      }
+      for (const [cn, isName] of targets) {
+        const addr = cn + rowNo, cell = ws[addr];
+        if (!cell || cell.v == null || cell.t === 'z') continue;
+        const old = cellText(cell, date1904);
+        const neu = isName ? await worker.nameCell(old, fam, vor) : await worker.cell(old);
+        if (neu === old) continue;
+        if (mode === 'anonymize') delete ws[addr];
+        else ws[addr] = { t: 's', v: neu };
+      }
+      if (r % 500 === 0) await pause();
+    }
+    processed.push(`${name} (${plan.describe()}: ${worker.cells - before} Zellen)`);
+    if (headerIdx > 0) {
+      processed.push(`  Kopfzeile in Zeile ${headerIdx + 1}, ${headerIdx} Zeile(n) davor unveraendert`);
+      if (mode === 'anonymize') warnings.push(`Blatt ${name}: ${headerIdx} Zeile(n) vor der Kopfzeile bleiben unveraendert. Bitte pruefen, ob dort Namen stehen.`);
+    }
+  }
+
+  if (!processed.length) throw new UserError('Keine Spalten mit Personendaten erkannt. Es wurde keine Datei erzeugt. Geprueft: ' + skipped.join('; '));
+  worker.check();
+  warnings = worker.warnings().concat(warnings);
+  if (missingExtra && missingExtra.length) warnings.push('Zusatzspalte(n) nicht gefunden: ' + missingExtra.join(', '));
+  if (skipped.length && mode !== 'decrypt') warnings.push('Nicht verarbeitete Blaetter bleiben unveraendert in der Datei: ' + skipped.join('; '));
+  // Dateieigenschaften nennen sonst weiter die Person, die die Datei erstellt hat
+  if (mode === 'anonymize') { wb.Props = {}; wb.Custprops = {}; }
+
+  const isXlsm = /\.xlsm$/i.test(fq.name);
+  warnings.push(`Die Browser-Version erhaelt Werte, Zahlenformate, Formeln und Spaltenbreiten, aber keine Farben, Schriften und Rahmen${isXlsm ? ' und keine Makros' : ''}. Dafuer pseudonym.py verwenden.`);
+  let wbout;
+  try { wbout = XLSX.write(wb, { bookType: isXlsm ? 'xlsm' : 'xlsx', type: 'array', compression: true }); }
+  catch (e) { throw new UserError('Die Excel-Datei laesst sich im Browser nicht schreiben. Bitte pseudonym.py verwenden. (Technisch: ' + e.message + ')'); }
+  const mime = isXlsm ? 'application/vnd.ms-excel.sheet.macroEnabled.12' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const info = processed.map(s => '+ ' + s).concat(skipped.map(s => '- ' + s));
+  return { blob: new Blob([wbout], { type: mime }), worker, warnings, info,
+           sheets: wb.SheetNames.map(n => sheetTop(n, wb.Sheets[n], date1904)) };
 }
 
 // ================= FILE HANDLING =================
 
-function parseCsvRows(text, sep) {
-  const rows = Papa.parse(text, { delimiter: sep, header: false, skipEmptyLines: false })
-    .data.map(r => r.map(c => c == null ? '' : String(c)));
-  // Zeilenumbruch am Dateiende erzeugt sonst eine leere Zusatzzeile (wie Python csv.reader)
-  const last = rows[rows.length - 1];
-  if (rows.length > 1 && text.endsWith('\n') && last.length === 1 && last[0] === '') rows.pop();
-  return rows;
+const SUPPORTED_RE = /\.(csv|tsv|txt|xlsx|xlsm)$/i;
+// In ZIP-Archiven zaehlt .txt nicht mit (liesmich.txt und Aehnliches), wie in pseudonym.py
+const BULK_SUPPORTED_RE = /\.(csv|tsv|xlsx|xlsm)$/i;
+
+function isHidden(name) { return name.startsWith('.') || name.startsWith('~$'); }
+
+// Haengt _1, _2, ... vor die Endung, wenn der Name schon vergeben ist
+function uniqueName(name, used) {
+  const m = /^(.*?)(\.[^.]*)?$/.exec(name);
+  let candidate = name, counter = 1;
+  while (used.has(candidate.toLowerCase())) candidate = `${m[1]}_${counter++}${m[2] || ''}`;
+  used.add(candidate.toLowerCase());
+  return candidate;
 }
 
 function parseOneFile(fobj) {
   if (fobj.type === 'xlsx') {
-    const wb = XLSX.read(fobj.raw, { type: 'array' });
-    fobj.parsed = { sheets: wb.SheetNames.map(name => {
-      const ws = wb.Sheets[name];
-      const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      if (json.length === 0) return { name, headers: [], rows: [], metaRows: [] };
-      const allRows = json.map(r => r.map(c => c == null ? '' : String(c)));
-      const headerIdx = findHeaderRow(allRows);
-      return { name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) };
-    })};
+    const wb = readWorkbook(fobj.raw);
+    const date1904 = is1904(wb);
+    fobj.parsed = { sheets: wb.SheetNames.map(name => sheetTop(name, wb.Sheets[name], date1904)) };
   } else {
-    const rawSlice = new Uint8Array(fobj.raw).slice(fobj.bomLength);
-    const text = new TextDecoder(fobj.encoding).decode(rawSlice);
-    const firstLine = text.split('\n')[0];
-    let detectedSep = ',';
-    if (firstLine.includes('\t')) detectedSep = '\t';
-    else if (firstLine.includes(';')) detectedSep = ';';
-    fobj.detectedSep = detectedSep;
-    const allRows = parseCsvRows(text, detectedSep);
-    if (allRows.length === 0) { fobj.parsed = { sheets: [{ name: fobj.name, headers: [], rows: [], metaRows: [] }] }; return; }
-    const headerIdx = findHeaderRow(allRows);
-    fobj.parsed = { sheets: [{ name: fobj.name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) }] };
+    const text = decodeText(fobj);
+    if (!fobj.sepManual) fobj.sep = detectSeparator(text, [...customCols]);
+    const records = scanCsv(text, fobj.sep);
+    fobj.parsed = { sheets: [{ name: fobj.name, totalRows: records.length,
+      top: records.slice(0, 40).map(rec => rec.map(f => fieldValue(text, f))) }] };
   }
 }
 
+// Sicht auf ein Blatt fuer Vorschau und Vergleich (Kopfzeile nach aktuellem Stand der Zusatzspalten)
+function sheetView(sheet) {
+  const extra = [...customCols];
+  if (!sheet || !sheet.top.length) return { name: sheet ? sheet.name : '', headers: [], metaRows: [], rows: [], rowCount: 0, plan: columnPlan([], extra) };
+  const headerIdx = findHeaderRow(sheet.top, 20, extra);
+  const headers = sheet.top[headerIdx];
+  return { name: sheet.name, headers, metaRows: sheet.top.slice(0, headerIdx),
+           rows: sheet.top.slice(headerIdx + 1, headerIdx + 21),
+           rowCount: Math.max(0, sheet.totalRows - headerIdx - 1), plan: columnPlan(headers, extra) };
+}
+
+function loadOne(name, data, sourceZip) {
+  const ftype = /\.(xlsx|xlsm)$/i.test(name) ? 'xlsx' : 'csv';
+  const enc = detectEncoding(data);
+  const fobj = { name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null, sourceZip };
+  try { parseOneFile(fobj); }
+  catch (e) { loadNotices.push(`${name}: ${e instanceof UserError ? e.message : 'Die Datei laesst sich nicht lesen. (' + e.message + ')'}`); return; }
+  fileQueue.push(fobj);
+}
+
 async function addFiles(fileList) {
-  for (const file of fileList) {
-    if (file.name.match(/\.zip$/i)) {
-      try {
-        const zip = await JSZip.loadAsync(file);
-        const supported = /\.(csv|tsv|txt|xlsx|xlsm)$/i;
+  loadNotices = [];
+  for (const file of Array.from(fileList)) {
+    try {
+      if (/\.zip$/i.test(file.name)) {
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const used = new Set();
         for (const [path, entry] of Object.entries(zip.files)) {
-          if (entry.dir || !supported.test(path)) continue;
-          const data = await entry.async('arraybuffer');
           const name = path.split('/').pop();
-          const ftype = name.match(/\.(xlsx|xlsm)$/i) ? 'xlsx' : 'csv';
-          const enc = detectEncoding(data);
-          const fobj = { name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null, sourceZip: file.name };
-          parseOneFile(fobj);
-          fileQueue.push(fobj);
+          if (entry.dir || isHidden(name) || path.startsWith('__MACOSX/')) continue;
+          if (!BULK_SUPPORTED_RE.test(name)) { loadNotices.push(`${file.name}: ${path} uebersprungen (Format nicht unterstuetzt)`); continue; }
+          loadOne(uniqueName(name, used), await entry.async('arraybuffer'), file.name);
         }
-      } catch (e) {
-        console.error('ZIP-Fehler:', e);
-        alert('Fehler beim Lesen der ZIP-Datei: ' + e.message);
+      } else if (!SUPPORTED_RE.test(file.name)) {
+        loadNotices.push(`${file.name}: Format nicht unterstuetzt (moeglich: CSV, TSV, TXT, XLSX, XLSM, ZIP).` +
+          (/\.xls$/i.test(file.name) ? ' Bitte in Excel als .xlsx speichern.' : ''));
+      } else {
+        loadOne(file.name, await file.arrayBuffer());
       }
-    } else {
-      const data = await file.arrayBuffer();
-      const ftype = file.name.match(/\.(xlsx|xlsm)$/i) ? 'xlsx' : 'csv';
-      const enc = detectEncoding(data);
-      const fobj = { name: file.name, type: ftype, raw: data, encoding: enc.encoding, bomLength: enc.bomLength, parsed: null };
-      parseOneFile(fobj);
-      fileQueue.push(fobj);
+    } catch (e) {
+      loadNotices.push(`${file.name}: Die Datei laesst sich nicht lesen. (${e.message})`);
     }
   }
   activeFileIdx = 0;
-  // Set separator UI for single CSV file
-  if (fileQueue.length === 1 && fileQueue[0].type === 'csv') {
-    const selVal = fileQueue[0].detectedSep === '\t' ? '\\t' : fileQueue[0].detectedSep;
-    document.getElementById('sepSelect').value = selVal;
-  }
+  invalidateResults();
+  syncSepSelect();
+  renderLoadNotices();
   renderFileList();
   renderPreview();
   updateDropzoneUI();
   updateActionState();
 }
 
+function syncSepSelect() {
+  if (fileQueue.length === 1 && fileQueue[0].type === 'csv') {
+    document.getElementById('sepSelect').value = fileQueue[0].sep === '\t' ? '\\t' : fileQueue[0].sep;
+  }
+}
+
+function renderLoadNotices() {
+  const el = document.getElementById('loadNotices');
+  el.classList.toggle('hidden', loadNotices.length === 0);
+  el.innerHTML = loadNotices.length ? '<strong>Nicht geladen:</strong><br>' + loadNotices.map(esc).join('<br>') : '';
+}
+
+// Ergebnisse gelten nur fuer den Stand, mit dem sie erzeugt wurden.
+// Aendern sich Dateien, Modus, Zusatzspalten oder Trennzeichen, verschwinden sie.
+function invalidateResults() {
+  batchResults = [];
+  batchZipName = '';
+  document.getElementById('resultCard').classList.add('hidden');
+  document.getElementById('compareCard').classList.add('hidden');
+}
+
 function renderPreview() {
-  if (fileQueue.length === 0) return;
+  const pc = document.getElementById('previewCard');
+  if (fileQueue.length === 0) { pc.classList.add('hidden'); return; }
   const fq = fileQueue[activeFileIdx];
   if (!fq || !fq.parsed) return;
-  const parsedData = fq.parsed;
+  const sheets = fq.parsed.sheets;
 
-  const pc = document.getElementById('previewCard');
   pc.classList.remove('hidden');
-  document.getElementById('customColsHint').classList.toggle('hidden', fileQueue.length === 0);
+  document.getElementById('customColsHint').classList.remove('hidden');
   renderFileSelector('fileSelectorPreview', 'selectFile');
   const tabs = document.getElementById('sheetTabs');
-  if (activeSheet >= parsedData.sheets.length) activeSheet = 0;
-  const totalRows = parsedData.sheets.reduce((s, sh) => s + sh.rows.length, 0);
-  const metaCount = parsedData.sheets.reduce((s, sh) => s + (sh.metaRows ? sh.metaRows.length : 0), 0);
+  if (activeSheet >= sheets.length) activeSheet = 0;
+  const views = sheets.map(sheetView);
+  const totalRows = views.reduce((s, v) => s + v.rowCount, 0);
+  const metaCount = views.reduce((s, v) => s + v.metaRows.length, 0);
   const metaInfo = metaCount > 0 ? `, ${metaCount} Metadaten-Zeile(n)` : '';
-  document.getElementById('previewInfo').textContent = `— ${parsedData.sheets.length} Sheet(s), ${totalRows} Zeilen${metaInfo}`;
+  document.getElementById('previewInfo').textContent = `— ${sheets.length} Sheet(s), ${totalRows} Zeilen${metaInfo}`;
 
   // Tabs
-  if (parsedData.sheets.length > 1) {
+  if (sheets.length > 1) {
     tabs.classList.remove('hidden');
-    tabs.innerHTML = parsedData.sheets.map((sh, i) =>
-      `<div class="sheet-tab ${i === activeSheet ? 'active' : ''}" onclick="switchSheet(${i})">${sh.name}</div>`
+    tabs.innerHTML = sheets.map((sh, i) =>
+      `<div class="sheet-tab ${i === activeSheet ? 'active' : ''}" onclick="switchSheet(${i})">${esc(sh.name)}</div>`
     ).join('');
   } else { tabs.classList.add('hidden'); }
 
-  renderSheetTable('previewTable', parsedData.sheets[activeSheet], false);
+  renderSheetTable('previewTable', views[activeSheet], false);
 }
 
-function switchSheet(i) { activeSheet = i; renderPreview(); }
+function switchSheet(i) { activeSheet = i; renderPreview(); if (batchResults.length) switchCompare(compareView); }
 
-function renderSheetTable(containerId, sheet, showChanged, resultSheet) {
+function renderSheetTable(containerId, view, showChanged, resultView) {
   const el = document.getElementById(containerId);
-  if (!sheet || sheet.headers.length === 0) { el.innerHTML = '<div style="padding:1rem;color:var(--text2)">Leeres Sheet</div>'; return; }
+  if (!view || view.headers.length === 0) { el.innerHTML = '<div style="padding:1rem;color:var(--text2)">Leeres Sheet</div>'; return; }
 
-  const idCols = findIdentityCols(sheet.headers);
-  const autoSet = new Set(Object.values(idCols).map(c => sheet.headers.indexOf(c)));
-  const nameCol = findNameCol(sheet.headers);
-  if (nameCol) autoSet.add(sheet.headers.indexOf(nameCol));
-
-  // Custom columns: find indices for columns in customCols that exist in this sheet
-  const customSet = new Set();
-  for (const cn of customCols) {
-    const idx = sheet.headers.findIndex(h => h.trim().toLowerCase() === cn.trim().toLowerCase());
-    if (idx >= 0 && !autoSet.has(idx)) customSet.add(idx);
-  }
-
-  const maxRows = 20;
-  const rows = sheet.rows.slice(0, maxRows);
+  const kinds = view.plan.kinds;
   let html = '<table><thead><tr>';
-  sheet.headers.forEach((h, i) => {
-    if (autoSet.has(i)) {
-      html += `<th class="id-col">${esc(h)}</th>`;
-    } else if (customSet.has(i)) {
-      html += `<th class="col-custom" data-col="${esc(h)}">${esc(h)}<span class="col-x">\u00d7</span></th>`;
-    } else {
-      html += `<th class="col-addable" data-col="${esc(h)}">${esc(h)}</th>`;
-    }
+  view.headers.forEach((h, i) => {
+    if (kinds[i] === '_custom') html += `<th class="col-custom" data-col="${esc(h)}">${esc(h)}<span class="col-x">×</span></th>`;
+    else if (kinds[i]) html += `<th class="id-col">${esc(h)}</th>`;
+    else html += `<th class="col-addable" data-col="${esc(h)}">${esc(h)}</th>`;
   });
   html += '</tr></thead><tbody>';
-  rows.forEach((r, ri) => {
+  view.rows.forEach((r, ri) => {
     html += '<tr>';
     r.forEach((c, ci) => {
-      const cls = autoSet.has(ci) ? 'id-col' : customSet.has(ci) ? 'col-custom' : '';
-      const changed = showChanged && resultSheet && resultSheet.rows[ri] && resultSheet.rows[ri][ci] !== c;
-      html += `<td class="${cls} ${changed ? 'changed' : ''}">${esc(String(c))}</td>`;
+      const cls = kinds[ci] === '_custom' ? 'col-custom' : kinds[ci] ? 'id-col' : '';
+      const changed = showChanged && resultView && resultView.rows[ri] && resultView.rows[ri][ci] !== c;
+      html += `<td class="${cls} ${changed ? 'changed' : ''}">${esc(c)}</td>`;
     });
     html += '</tr>';
   });
   html += '</tbody></table>';
-  if (sheet.rows.length > maxRows) html += `<div style="padding:.5rem;font-size:.78rem;color:var(--text2);text-align:center;">... und ${sheet.rows.length - maxRows} weitere Zeilen</div>`;
+  if (view.rowCount > view.rows.length) html += `<div style="padding:.5rem;font-size:.78rem;color:var(--text2);text-align:center;">... und ${view.rowCount - view.rows.length} weitere Zeilen</div>`;
   el.innerHTML = html;
   // Attach click handlers via data attributes (safe for column names with quotes)
   el.querySelectorAll('th.col-addable, th.col-custom').forEach(th => {
@@ -682,7 +1082,7 @@ function renderSheetTable(containerId, sheet, showChanged, resultSheet) {
   });
 }
 
-function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ================= FILE LIST =================
 
@@ -690,6 +1090,7 @@ const FILE_LIST_COLLAPSE_THRESHOLD = 8;
 
 function renderFileList() {
   const el = document.getElementById('fileList');
+  document.getElementById('sepGroup').classList.toggle('hidden', fileQueue.length !== 1 || fileQueue[0].type === 'xlsx');
   if (fileQueue.length === 0) { el.innerHTML = ''; return; }
   const totalSize = fileQueue.reduce((s, fq) => s + fq.raw.byteLength, 0);
   const sizeStr = totalSize < 1024*1024 ? (totalSize / 1024).toFixed(1) + ' KB' : (totalSize / (1024*1024)).toFixed(1) + ' MB';
@@ -700,8 +1101,8 @@ function renderFileList() {
   if (xlsxCount) typeParts.push(xlsxCount + ' XLSX');
   const isLarge = fileQueue.length > FILE_LIST_COLLAPSE_THRESHOLD;
 
-  let html = `<div class="file-list-header"><span class="file-list-summary">${fileQueue.length} Dateien \u00b7 ${sizeStr} \u00b7 ${typeParts.join(', ')}</span><div class="file-list-actions">`;
-  if (isLarge) html += `<button class="file-action-btn" onclick="toggleFileList()">Liste anzeigen \u25bc</button>`;
+  let html = `<div class="file-list-header"><span class="file-list-summary">${fileQueue.length} Dateien · ${sizeStr} · ${typeParts.join(', ')}</span><div class="file-list-actions">`;
+  if (isLarge) html += `<button class="file-action-btn" onclick="toggleFileList()">Liste anzeigen ▼</button>`;
   html += `<button class="file-action-btn" style="border-color:var(--red);color:var(--red);" onclick="clearFiles()">Alle entfernen</button></div></div>`;
   const displayStyle = isLarge ? ' style="display:none"' : '';
   html += `<div class="file-list-scroll" id="fileListScroll"${displayStyle}>`;
@@ -709,20 +1110,19 @@ function renderFileList() {
     const fq = fileQueue[i];
     const size = fq.raw.byteLength;
     const fSizeStr = size < 1024 ? size + ' B' : (size / 1024).toFixed(1) + ' KB';
-    const icon = fq.type === 'xlsx' ? '\uD83D\uDCCA' : '\uD83D\uDCC4';
+    const icon = fq.type === 'xlsx' ? '📊' : '📄';
     const activeClass = i === activeFileIdx ? ' active' : '';
-    html += `<div class="file-item${activeClass}" onclick="selectFile(${i})"><span>${icon}</span><span class="file-item-name">${esc(fq.name)}</span><span class="file-item-size">${fSizeStr}</span><button class="file-item-remove" onclick="event.stopPropagation();removeFile(${i})" title="Entfernen">\u00d7</button></div>`;
+    html += `<div class="file-item${activeClass}" onclick="selectFile(${i})"><span>${icon}</span><span class="file-item-name">${esc(fq.name)}</span><span class="file-item-size">${fSizeStr}</span><button class="file-item-remove" onclick="event.stopPropagation();removeFile(${i})" title="Entfernen">×</button></div>`;
   }
   html += '</div>';
   el.innerHTML = html;
-  document.getElementById('sepGroup').classList.toggle('hidden', fileQueue.length !== 1 || fileQueue[0].type === 'xlsx');
 }
 
 function toggleFileList() {
   const scroll = document.getElementById('fileListScroll');
   const btn = event.target;
-  if (scroll.style.display === 'none') { scroll.style.display = ''; btn.innerHTML = 'Liste verbergen \u25b2'; }
-  else { scroll.style.display = 'none'; btn.innerHTML = 'Liste anzeigen \u25bc'; }
+  if (scroll.style.display === 'none') { scroll.style.display = ''; btn.innerHTML = 'Liste verbergen ▲'; }
+  else { scroll.style.display = 'none'; btn.innerHTML = 'Liste anzeigen ▼'; }
 }
 
 function selectFile(idx) {
@@ -735,9 +1135,10 @@ function selectFile(idx) {
 function removeFile(idx) {
   fileQueue.splice(idx, 1);
   if (activeFileIdx >= fileQueue.length) activeFileIdx = Math.max(0, fileQueue.length - 1);
+  invalidateResults();
+  syncSepSelect();
   renderFileList();
-  if (fileQueue.length > 0) renderPreview();
-  else document.getElementById('previewCard').classList.add('hidden');
+  renderPreview();
   updateDropzoneUI();
   updateActionState();
 }
@@ -745,15 +1146,19 @@ function removeFile(idx) {
 function toggleCustomCol(colName) {
   if (customCols.has(colName)) customCols.delete(colName);
   else customCols.add(colName);
+  invalidateResults();
   renderPreview();
 }
 
 function clearFiles() {
   fileQueue = [];
+  loadNotices = [];
   customCols.clear();
   activeFileIdx = 0;
-  document.getElementById('previewCard').classList.add('hidden');
-  document.getElementById('fileList').innerHTML = '';
+  invalidateResults();
+  renderLoadNotices();
+  renderFileList();
+  renderPreview();
   updateDropzoneUI();
   updateActionState();
 }
@@ -773,9 +1178,9 @@ function renderFileSelector(containerId, onSelectFnName) {
   } else {
     const options = fileQueue.map((fq, i) => `<option value="${i}"${i === activeFileIdx ? ' selected' : ''}>${esc(fq.name)}</option>`).join('');
     el.innerHTML = `<div class="file-selector">
-      <button class="file-selector-nav" onclick="${onSelectFnName}(Math.max(0,activeFileIdx-1))">\u25c4</button>
+      <button class="file-selector-nav" onclick="${onSelectFnName}(Math.max(0,activeFileIdx-1))">◄</button>
       <select onchange="${onSelectFnName}(+this.value)">${options}</select>
-      <button class="file-selector-nav" onclick="${onSelectFnName}(Math.min(fileQueue.length-1,activeFileIdx+1))">\u25ba</button>
+      <button class="file-selector-nav" onclick="${onSelectFnName}(Math.min(fileQueue.length-1,activeFileIdx+1))">►</button>
       <span class="file-selector-count">${activeFileIdx+1} / ${fileQueue.length}</span>
     </div>`;
   }
@@ -789,10 +1194,16 @@ function selectFileAndCompare(idx) {
 
 // ================= PROCESSING =================
 
+// Verarbeitet eine geladene Datei. Wirft UserError mit einer verstaendlichen Meldung.
+function processOne(fq, mode, cipher, extraCols) {
+  return fq.type === 'xlsx' ? processXlsx(fq, mode, cipher, extraCols) : processCsv(fq, mode, cipher, extraCols);
+}
+
 async function processFile() {
   if (fileQueue.length === 0) return;
+  const mode = currentMode;
   const secret = document.getElementById('secretInput').value;
-  if (!secret) { alert('Bitte Secret eingeben.'); return; }
+  if (mode !== 'anonymize' && !secret) { alert('Bitte Secret eingeben.'); return; }
 
   const btn = document.getElementById('actionBtn');
   btn.disabled = true;
@@ -803,187 +1214,90 @@ async function processFile() {
 
   const logEl = document.getElementById('logArea');
   document.getElementById('logCard').classList.remove('hidden');
-  logEl.innerHTML = '';
-  const log = (msg, cls) => { logEl.innerHTML += `<span class="${cls||''}">${esc(msg)}</span>\n`; logEl.scrollTop = logEl.scrollHeight; };
+  const logLines = [];
+  const log = (msg, cls) => { logLines.push(`<span class="${cls||''}">${esc(msg)}</span>`); };
+  const flushLog = () => { logEl.innerHTML = logLines.join('\n'); logEl.scrollTop = logEl.scrollHeight; };
 
-  const mode = currentMode;
-  const action = mode === 'encrypt' ? 'Pseudonymisierung' : 'De-Pseudonymisierung';
-  const isBatch = fileQueue.length > 1;
-  if (isBatch) { log(`Batch-${action}: ${fileQueue.length} Dateien\n`); pt.classList.add('active'); }
-  log(`Leite Schluessel ab (PBKDF2, 100k Runden)...`);
-
-  let keyBytes;
-  try { keyBytes = await deriveKey(secret); } catch (e) { log('FEHLER: ' + e.message, 'err'); btn.disabled = false; return; }
-  log('Schluessel abgeleitet.', 'ok');
-  pf.style.width = '5%';
-
-  const transform = mode === 'encrypt' ? encryptValue : decryptValue;
-  batchResults = [];
-  let grandTotalCells = 0, grandSheetsProcessed = 0, grandSheetsSkipped = 0;
-
-  for (let fi = 0; fi < fileQueue.length; fi++) {
-    const fq = fileQueue[fi];
-    const parsedData = fq.parsed;
-    const filePct = 5 + (fi / fileQueue.length) * 90;
-    pf.style.width = filePct + '%';
-    if (isBatch) pt.textContent = `Datei ${fi+1} / ${fileQueue.length} \u2014 ${fq.name}`;
-    if (isBatch) log(`\n--- Datei ${fi+1}/${fileQueue.length}: ${fq.name} ---`);
-    else log(`Datei: ${fq.name} (${fq.type.toUpperCase()})`);
-
-    let totalCells = 0, sheetsProcessed = 0, sheetsSkipped = 0;
-    const resultSheets = [];
-
-    for (let si = 0; si < parsedData.sheets.length; si++) {
-      const sheet = parsedData.sheets[si];
-      if (sheet.headers.length === 0 || sheet.rows.length === 0) {
-        log(`  Sheet "${sheet.name}": uebersprungen (leer)`, 'warn');
-        sheetsSkipped++;
-        resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
-        continue;
-      }
-      const idCols = findIdentityCols(sheet.headers);
-      // Benutzerdefinierte Spalten einmischen
-      const existingVals = new Set(Object.values(idCols));
-      for (const cn of customCols) {
-        const idx = sheet.headers.findIndex(h => h.trim().toLowerCase() === cn.trim().toLowerCase());
-        if (idx >= 0 && !existingVals.has(sheet.headers[idx])) {
-          idCols['_custom_' + cn] = sheet.headers[idx];
-          existingVals.add(sheet.headers[idx]);
-        }
-      }
-      const nameColName = findNameCol(sheet.headers);
-      if (Object.keys(idCols).length === 0 && !nameColName) {
-        log(`  Sheet "${sheet.name}": keine Identitaetsspalten [${sheet.headers.filter(h=>h).join(', ')}]`, 'warn');
-        sheetsSkipped++;
-        resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: sheet.rows.map(r => [...r]) });
-        continue;
-      }
-      const colIndices = {};
-      for (const [canon, actual] of Object.entries(idCols)) colIndices[canon] = sheet.headers.indexOf(actual);
-      let nameColIdx = nameColName ? sheet.headers.indexOf(nameColName) : -1;
-      let nameIsComposite = false, nameOrder = 'fam_vor';
-      const famIdx = colIndices.familienname ?? -1;
-      const vorIdx = colIndices.vorname ?? -1;
-      if (nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0 && sheet.rows.length > 0) {
-        const nv = (sheet.rows[0][nameColIdx]||'').trim(), fv = (sheet.rows[0][famIdx]||'').trim(), vv = (sheet.rows[0][vorIdx]||'').trim();
-        if (nv === `${fv} ${vv}`.trim()) { nameIsComposite = true; nameOrder = 'fam_vor'; }
-        else if (nv === `${vv} ${fv}`.trim()) { nameIsComposite = true; nameOrder = 'vor_fam'; }
-      }
-      // NAME-Spalte ohne Composite: als regulaere Spalte ganz verschluesseln
-      if (nameColIdx >= 0 && !nameIsComposite && !Object.values(colIndices).includes(nameColIdx)) {
-        colIndices['_name'] = nameColIdx;
-      }
-      const customInSheet = Object.keys(idCols).filter(k => k.startsWith('_custom_')).length;
-      const encryptedColNames = Object.values(idCols).slice();
-      if (colIndices['_name'] !== undefined && nameColName) encryptedColNames.push(nameColName);
-      const colInfo = encryptedColNames.join(', ') + (nameIsComposite && nameColName ? ' + '+nameColName : '');
-      log(`  Sheet "${sheet.name}": ${colInfo}${customInSheet ? ` (${customInSheet} benutzerdefiniert)` : ''}`);
-      const newRows = [];
-      let sheetCells = 0;
-      for (let ri = 0; ri < sheet.rows.length; ri++) {
-        const row = [...sheet.rows[ri]];
-        for (const [canon, ci] of Object.entries(colIndices)) {
-          const val = (row[ci]||'').trim();
-          if (val) { row[ci] = await transform(keyBytes, val); sheetCells++; }
-        }
-        if (nameIsComposite && nameColIdx >= 0 && famIdx >= 0 && vorIdx >= 0) {
-          if (nameOrder === 'vor_fam') row[nameColIdx] = `${(row[vorIdx]||'').trim()} ${(row[famIdx]||'').trim()}`.trim();
-          else row[nameColIdx] = `${(row[famIdx]||'').trim()} ${(row[vorIdx]||'').trim()}`.trim();
-        }
-        newRows.push(row);
-        if (ri % 100 === 0) {
-          const innerPct = 5 + ((fi + (si + ri/sheet.rows.length)/parsedData.sheets.length) / fileQueue.length) * 90;
-          pf.style.width = innerPct + '%';
-          await new Promise(r => setTimeout(r, 0));
-        }
-      }
-      totalCells += sheetCells; sheetsProcessed++;
-      log(`    -> ${sheetCells} Zellen verarbeitet`, 'ok');
-      resultSheets.push({ name: sheet.name, headers: [...sheet.headers], metaRows: sheet.metaRows || [], rows: newRows });
+  const action = MODES[mode].label;
+  const queue = fileQueue.slice();
+  const extraCols = [...customCols];
+  const isBatch = queue.length > 1;
+  const results = [];
+  let grandCells = 0;
+  try {
+    if (isBatch) { log(`Batch-${action}: ${queue.length} Dateien\n`); pt.classList.add('active'); }
+    let cipher = null;
+    if (mode !== 'anonymize') {
+      log('Leite Schluessel ab (PBKDF2, 100k Runden)...');
+      flushLog();
+      cipher = await createCipher(secret);
+      log('Schluessel abgeleitet.', 'ok');
     }
+    pf.style.width = '5%';
 
-    // Build output blob for this file
-    const suffix = mode === 'encrypt' ? '_pseudo' : '_restored';
-    let blob, outName;
-    if (fq.type === 'xlsx') {
-      const wb = XLSX.utils.book_new();
-      for (const rs of resultSheets) { const data = [...(rs.metaRows||[]), rs.headers, ...rs.rows]; const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, rs.name); }
-      const isXlsm = /\.xlsm$/i.test(fq.name);
-      if (isXlsm) log('  Hinweis: .xlsm — Makros und Formatierung gehen in der Browser-Version verloren (Daten werden korrekt verschluesselt).', 'warn');
-      const wbout = XLSX.write(wb, { bookType: isXlsm ? 'xlsm' : 'xlsx', type: 'array' });
-      const mime = isXlsm ? 'application/vnd.ms-excel.sheet.macroEnabled.12' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      blob = new Blob([wbout], { type: mime });
-      const outExt = isXlsm ? '.xlsm' : '.xlsx';
-      outName = fq.name.replace(/\.(xlsx|xlsm)$/i, suffix + outExt);
-    } else {
-      const sep = fq.detectedSep || ',';
-      const rs = resultSheets[0];
-      const rawBytes = new Uint8Array(fq.raw);
-      const origDecoded = new TextDecoder(fq.encoding).decode(rawBytes.slice(fq.bomLength));
-      const origLines = origDecoded.includes('\r\n') ? origDecoded.split('\r\n') : origDecoded.split('\n');
-      const headerLineIdx = rs.metaRows ? rs.metaRows.length : 0;
-      const headerLineRaw = (origLines[headerLineIdx] || '').trim();
-      const quoteAll = headerLineRaw.startsWith('"');
-      const useCrlf = origDecoded.includes('\r\n');
-      const lineEnd = useCrlf ? '\r\n' : '\n';
-      let finalCsv = '';
-      if (headerLineIdx > 0) finalCsv = origLines.slice(0, headerLineIdx).join(lineEnd) + lineEnd;
-      const dataForPapa = [rs.headers, ...rs.rows];
-      let csvStr = Papa.unparse(dataForPapa, { delimiter: sep, quotes: quoteAll });
-      if (useCrlf && !csvStr.includes('\r\n')) csvStr = csvStr.replace(/\n/g, '\r\n');
-      if (!useCrlf) csvStr = csvStr.replace(/\r\n/g, '\n');
-      finalCsv += csvStr;
-      if (origDecoded.endsWith('\n')) finalCsv += lineEnd;
-      const parts = [];
-      if (fq.bomLength > 0) parts.push(new Uint8Array(fq.raw, 0, fq.bomLength));
-      // Reine ASCII-Eingabe (z.B. Pseudonym-Datei), Ausgabe mit Umlauten: Original-Kodierung
-      // nicht bestimmbar -> UTF-8 mit BOM, damit Excel die Umlaute korrekt anzeigt
-      else if (fq.encoding === 'utf-8' && rawBytes.every(byte => byte < 0x80) && /[^\x00-\x7F]/.test(finalCsv)) {
-        parts.push(new Uint8Array([0xEF, 0xBB, 0xBF]));
-        log('  Hinweis: Eingabe war reines ASCII \u2192 Ausgabe als UTF-8 mit BOM (Excel-kompatibel)', 'warn');
+    const usedNames = new Set();
+    for (let fi = 0; fi < queue.length; fi++) {
+      const fq = queue[fi];
+      pf.style.width = (5 + (fi / queue.length) * 90) + '%';
+      if (isBatch) pt.textContent = `Datei ${fi+1} / ${queue.length} — ${fq.name}`;
+      log(isBatch ? `\n--- Datei ${fi+1}/${queue.length}: ${fq.name} ---` : `Datei: ${fq.name} (${fq.type.toUpperCase()})`);
+      try {
+        const r = await processOne(fq, mode, cipher, extraCols);
+        const outName = uniqueName(fq.name.replace(/(\.[^.]+)?$/, MODES[mode].suffix + '$1'), usedNames);
+        r.info.forEach(line => log('  ' + line));
+        log(mode === 'anonymize' ? `  -> ${r.worker.cells} Zellen geleert (nicht wiederherstellbar)` : `  -> ${r.worker.cells} Zellen verarbeitet`, 'ok');
+        r.warnings.forEach(w => log('  WARNUNG: ' + w, 'warn'));
+        grandCells += r.worker.cells;
+        results.push({ ok: true, name: outName, blob: r.blob, cells: r.worker.cells, failed: r.worker.failed, sheets: r.sheets, source: fq });
+      } catch (e) {
+        const message = e instanceof UserError ? e.message : `Unerwarteter Fehler: ${e.message}`;
+        log(`  FEHLER: ${message}`, 'err');
+        results.push({ ok: false, name: fq.name, error: message, source: fq });
       }
-      try { parts.push(encodeText(finalCsv, fq.encoding)); }
-      catch (e) { log(`FEHLER bei ${fq.name}: ${e.message}`, 'err'); btn.disabled = false; return; }
-      blob = new Blob(parts, { type: 'text/csv;charset=utf-8' });
-      const ext = fq.name.match(/\.[^.]+$/)?.[0] || '.csv';
-      outName = fq.name.replace(/\.[^.]+$/, suffix + ext);
+      if (fi % 10 === 0) { flushLog(); await pause(); }
     }
-    grandTotalCells += totalCells; grandSheetsProcessed += sheetsProcessed; grandSheetsSkipped += sheetsSkipped;
-    batchResults.push({ blob, name: outName, totalCells, sheetsProcessed, sheetsSkipped, resultSheets });
+  } catch (e) {
+    log('FEHLER: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    updateActionState();
   }
 
+  const good = results.filter(r => r.ok), bad = results.filter(r => !r.ok);
   pf.style.width = '100%';
-  if (isBatch) { log(`\nBatch-${action} abgeschlossen.`, 'ok'); log(`  ${fileQueue.length} Datei(en), ${grandSheetsProcessed} Sheet(s), ${grandTotalCells} Zellen`, 'ok'); }
-  else { log(`\n${action} abgeschlossen.`, 'ok'); log(`  ${grandSheetsProcessed} Sheet(s) verarbeitet, ${grandTotalCells} Zellen`, 'ok'); }
-  if (grandSheetsSkipped) log(`  ${grandSheetsSkipped} Sheet(s) uebersprungen`, 'warn');
+  log(`\n${isBatch ? 'Batch-' : ''}${action} abgeschlossen: ${good.length} Datei(en) verarbeitet, ${grandCells} Zellen` + (bad.length ? `, ${bad.length} nicht verarbeitet` : ''), bad.length ? 'warn' : 'ok');
+  flushLog();
+
+  // Zwischenzeitlich geaenderte Dateiliste: Ergebnisse passen nicht mehr dazu
+  if (queue.length !== fileQueue.length || queue.some((f, i) => f !== fileQueue[i]) || mode !== currentMode) return;
+  batchResults = results;
 
   document.getElementById('resultCard').classList.remove('hidden');
   document.getElementById('statsRow').innerHTML = `
-    ${isBatch ? `<div class="stat"><div class="stat-num">${fileQueue.length}</div><div class="stat-label">Dateien</div></div>` : ''}
-    <div class="stat"><div class="stat-num">${grandSheetsProcessed}</div><div class="stat-label">Sheets</div></div>
-    <div class="stat"><div class="stat-num">${grandTotalCells}</div><div class="stat-label">Zellen</div></div>
-    <div class="stat"><div class="stat-num">${grandSheetsSkipped}</div><div class="stat-label">Uebersprungen</div></div>`;
-  batchZipName = makeZipName(fileQueue, mode);
-  const dlName = batchResults.length === 1 ? batchResults[0].name : batchZipName;
-  document.getElementById('dlName').textContent = dlName;
+    <div class="stat"><div class="stat-num">${good.length}</div><div class="stat-label">Dateien verarbeitet</div></div>
+    <div class="stat"><div class="stat-num">${grandCells}</div><div class="stat-label">Zellen</div></div>
+    <div class="stat"><div class="stat-num">${bad.length}</div><div class="stat-label">Nicht verarbeitet</div></div>`;
+  const problems = document.getElementById('resultProblems');
+  problems.classList.toggle('hidden', bad.length === 0);
+  problems.innerHTML = bad.length ? '<strong>Nicht verarbeitet (keine Ausgabedatei):</strong><br>' + bad.map(r => `${esc(r.name)}: ${esc(r.error)}`).join('<br>') : '';
+  batchZipName = good.length ? makeZipName(good.map(r => r.source), mode) : '';
+  document.getElementById('dlRow').classList.toggle('hidden', good.length === 0);
+  document.getElementById('dlName').textContent = good.length === 1 ? good[0].name : batchZipName;
 
   const cc = document.getElementById('compareCard');
-  cc.classList.remove('hidden');
-  document.getElementById('cmpTabResult').textContent = mode === 'encrypt' ? 'Pseudonymisiert' : 'Wiederhergestellt';
+  cc.classList.toggle('hidden', good.length === 0);
+  document.getElementById('cmpTabResult').textContent = MODES[mode].result;
   compareView = 'orig';
   renderFileSelector('fileSelectorCompare', 'selectFileAndCompare');
   switchCompare('orig');
 
-  if (isBatch) addHistory(`${fileQueue.length} Dateien (Batch)`, mode);
-  else addHistory(fileQueue[0].name, mode);
-
-  btn.disabled = false;
+  if (good.length) addHistory(isBatch ? `${good.length} Dateien (Batch)` : good[0].source.name, mode);
   setTimeout(() => { pb.classList.remove('active'); pt.classList.remove('active'); }, 1000);
 }
 
 // ZIP-Name: Quell-ZIP bzw. gemeinsamer Dateinamen-Anfang + Modus + Anzahl + Datum
 function makeZipName(files, mode) {
-  const suffix = mode === 'encrypt' ? '_pseudo' : '_restored';
+  const suffix = MODES[mode].suffix;
   if (files[0].sourceZip && files.every(f => f.sourceZip === files[0].sourceZip)) {
     return files[0].sourceZip.replace(/\.zip$/i, '') + suffix + '.zip';
   }
@@ -997,24 +1311,26 @@ function makeZipName(files, mode) {
   return `${prefix}${suffix}_${files.length}Dateien_${date}.zip`;
 }
 
+async function buildDownload() {
+  const good = batchResults.filter(r => r.ok);
+  if (good.length === 0) return null;
+  if (good.length === 1) return { name: good[0].name, blob: good[0].blob };
+  const zip = new JSZip();
+  for (const r of good) zip.file(r.name, await r.blob.arrayBuffer());
+  const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  return { name: batchZipName, blob: new Blob([bytes], { type: 'application/zip' }) };
+}
+
 async function downloadResult() {
-  if (batchResults.length === 0) return;
-  if (batchResults.length === 1) {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(batchResults[0].blob);
-    a.download = batchResults[0].name;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } else {
-    const zip = new JSZip();
-    for (const r of batchResults) zip.file(r.name, r.blob);
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(zipBlob);
-    a.download = batchZipName;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
+  const dl = await buildDownload();
+  if (!dl) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(dl.blob);
+  a.download = dl.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 
 // ================= UI =================
@@ -1023,11 +1339,21 @@ function setMode(m) {
   currentMode = m;
   document.getElementById('btnEnc').className = 'mode-btn' + (m === 'encrypt' ? ' active-enc' : '');
   document.getElementById('btnDec').className = 'mode-btn' + (m === 'decrypt' ? ' active-dec' : '');
+  document.getElementById('btnAnon').className = 'mode-btn' + (m === 'anonymize' ? ' active-anon' : '');
   const btn = document.getElementById('actionBtn');
-  btn.textContent = m === 'encrypt' ? 'Pseudonymisieren' : 'De-Pseudonymisieren';
+  btn.textContent = MODES[m].button;
   btn.className = 'action-btn ' + m;
+  // Anonymisieren braucht kein Secret
+  document.getElementById('secretGroup').classList.toggle('hidden', m === 'anonymize');
+  document.getElementById('anonHint').classList.toggle('hidden', m !== 'anonymize');
+  document.getElementById('customColsHint').textContent = m === 'anonymize'
+    ? 'Klicken Sie auf Spaltenueberschriften, um zusaetzliche Spalten zu leeren.'
+    : 'Klicken Sie auf Spaltenueberschriften, um zusaetzliche Spalten zu verschluesseln.';
+  invalidateResults();
   updateActionState();
 }
+
+const DROPZONE_TEXT = 'CSV / XLSX / XLSM / ZIP hierher ziehen — oder klicken (Mehrfachauswahl)';
 
 function updateDropzoneUI() {
   const dz = document.getElementById('dropzone');
@@ -1036,26 +1362,27 @@ function updateDropzoneUI() {
   if (fileQueue.length > 0) {
     dz.classList.add('has-file');
     if (fileQueue.length === 1) {
-      icon.textContent = '\u2705';
+      icon.textContent = '✅';
       text.innerHTML = `<span class="dropzone-file">${esc(fileQueue[0].name)}</span><br><span class="dropzone-text">Weitere Dateien hinzufuegen oder klicken</span>`;
     } else {
-      icon.textContent = '\uD83D\uDCC2';
+      icon.textContent = '📂';
       text.innerHTML = `<span class="dropzone-file">${fileQueue.length} Dateien ausgewaehlt</span><br><span class="dropzone-text">Weitere hinzufuegen oder klicken</span>`;
     }
   } else {
     dz.classList.remove('has-file');
-    icon.textContent = '\uD83D\uDCC4';
-    text.textContent = 'CSV / XLSX / XLSM / ZIP hierher ziehen \u2014 oder klicken (Mehrfachauswahl)';
+    icon.textContent = '📄';
+    text.textContent = DROPZONE_TEXT;
   }
 }
 
 function updateActionState() {
   const btn = document.getElementById('actionBtn');
+  const needsSecret = currentMode !== 'anonymize';
   const secret = document.getElementById('secretInput').value;
-  btn.disabled = fileQueue.length === 0 || !secret;
+  btn.disabled = fileQueue.length === 0 || (needsSecret && !secret);
   const hint = document.getElementById('actionHint');
   if (fileQueue.length === 0) hint.textContent = 'Zuerst Datei(en) waehlen';
-  else if (!secret) hint.textContent = 'Secret eingeben';
+  else if (needsSecret && !secret) hint.textContent = 'Secret eingeben';
   else hint.textContent = '';
 }
 
@@ -1084,14 +1411,11 @@ document.getElementById('secretInput').addEventListener('input', updateActionSta
 document.getElementById('sepSelect').addEventListener('change', () => {
   if (fileQueue.length === 1 && fileQueue[0].type === 'csv') {
     const fobj = fileQueue[0];
-    const rawSlice = new Uint8Array(fobj.raw).slice(fobj.bomLength);
-    const text = new TextDecoder(fobj.encoding).decode(rawSlice);
     const selVal = document.getElementById('sepSelect').value;
-    const sep = selVal === '\\t' ? '\t' : selVal;
-    fobj.detectedSep = sep;
-    const allRows = parseCsvRows(text, sep);
-    const headerIdx = findHeaderRow(allRows);
-    fobj.parsed = { sheets: [{ name: fobj.name, headers: allRows[headerIdx], metaRows: allRows.slice(0, headerIdx), rows: allRows.slice(headerIdx + 1) }] };
+    fobj.sep = selVal === '\\t' ? '\t' : selVal;
+    fobj.sepManual = true;
+    parseOneFile(fobj);
+    invalidateResults();
     renderPreview();
   }
 });
@@ -1106,13 +1430,28 @@ dz.addEventListener('drop', (e) => {
   e.preventDefault(); dz.classList.remove('dragover');
   if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
 });
-fi.addEventListener('change', () => { if (fi.files.length) addFiles(fi.files); });
+// Wert leeren, damit dieselbe Datei erneut gewaehlt werden kann
+fi.addEventListener('change', async () => { if (fi.files.length) { await addFiles(fi.files); fi.value = ''; } });
 
-// Info popup
+// Info popup: Tabelle aus COLUMN_ALIASES erzeugen, damit sie nie vom Code abweicht
+const KIND_LABELS = { familienname: 'Familienname', vorname: 'Vorname', matnr: 'Matrikelnr.', email: 'E-Mail',
+  pruefer: 'Pruefer', anzeigename: 'Anzeigename', svnr: 'SV-Nr.', geburtsdatum: 'Geburtsdatum', telefon: 'Telefon',
+  examiner_id: 'Valuatic', examiner_nachname: 'Valuatic', examiner_vorname: 'Valuatic',
+  candidate_id: 'Valuatic', candidate_nachname: 'Valuatic', candidate_vorname: 'Valuatic' };
+function renderInfoTable() {
+  let html = '<tr><th>Typ</th><th>Spaltennamen</th></tr>';
+  for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
+    html += `<tr><td>${esc(KIND_LABELS[key] || key)}</td><td>${esc(aliases.join(', '))}</td></tr>`;
+  }
+  html += `<tr><td>Name</td><td>${esc(NAME_ALIASES.join(', '))}: je Zeile aus Familienname + Vorname zusammengesetzt, sonst wird der ganze Wert verschluesselt</td></tr>`;
+  document.getElementById('infoTable').innerHTML = html;
+}
+renderInfoTable();
 document.getElementById('infoBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   document.getElementById('infoPopup').classList.toggle('show');
 });
+document.getElementById('infoPopup').addEventListener('click', (e) => e.stopPropagation());
 document.addEventListener('click', () => document.getElementById('infoPopup').classList.remove('show'));
 
 // Compare toggle
@@ -1120,19 +1459,17 @@ function switchCompare(view) {
   compareView = view;
   document.getElementById('cmpTabOrig').className = 'compare-tab' + (view === 'orig' ? ' active-orig' : '');
   document.getElementById('cmpTabResult').className = 'compare-tab' + (view === 'result' ? ' active-result' : '');
-  if (fileQueue.length > 0 && batchResults.length > activeFileIdx) {
-    const fq = fileQueue[activeFileIdx];
-    const br = batchResults[activeFileIdx];
-    if (fq && fq.parsed && br && br.resultSheets) {
-      const origSheet = fq.parsed.sheets[activeSheet];
-      const resSheet = br.resultSheets[activeSheet];
-      if (view === 'orig') renderSheetTable('compareTable', origSheet, true, resSheet);
-      else renderSheetTable('compareTable', resSheet, false);
-    }
-  }
+  const fq = fileQueue[activeFileIdx], br = batchResults[activeFileIdx];
+  const el = document.getElementById('compareTable');
+  if (!fq || !fq.parsed || !br) { el.innerHTML = ''; return; }
+  if (!br.ok) { el.innerHTML = `<div style="padding:1rem;color:var(--red)">Nicht verarbeitet: ${esc(br.error)}</div>`; return; }
+  const origView = sheetView(fq.parsed.sheets[activeSheet]);
+  const resView = sheetView(br.sheets[activeSheet]);
+  if (view === 'orig') renderSheetTable('compareTable', origView, true, resView);
+  else renderSheetTable('compareTable', resView, false);
 }
 
-// History
+// History (nur Dateiname, Modus und Zeit; nie das Secret)
 function loadHistory() {
   try { return JSON.parse(localStorage.getItem('pseudo_history') || '[]'); } catch { return []; }
 }
@@ -1140,21 +1477,30 @@ function addHistory(name, mode) {
   const h = loadHistory();
   h.unshift({ name, mode, time: new Date().toLocaleString('de-AT') });
   if (h.length > 10) h.length = 10;
-  localStorage.setItem('pseudo_history', JSON.stringify(h));
+  try { localStorage.setItem('pseudo_history', JSON.stringify(h)); } catch { /* Speicher gesperrt: Verlauf entfaellt */ }
+  renderHistory();
+}
+function clearHistory() {
+  try { localStorage.removeItem('pseudo_history'); } catch { /* nichts zu loeschen */ }
   renderHistory();
 }
 function renderHistory() {
   const h = loadHistory();
   const el = document.getElementById('historyList');
+  document.getElementById('historyClear').classList.toggle('hidden', h.length === 0);
   if (h.length === 0) { el.innerHTML = '<span style="font-size:.82rem;color:var(--text2);">Noch keine Verarbeitungen.</span>'; return; }
-  el.innerHTML = h.map(e => `
+  el.innerHTML = h.map(e => {
+    const m = MODES[e.mode] || MODES.encrypt;
+    return `
     <div class="history-item">
       <span class="hist-file">${esc(e.name)}</span>
-      <span class="hist-mode ${e.mode === 'encrypt' ? 'enc' : 'dec'}">${e.mode === 'encrypt' ? 'Encrypt' : 'Decrypt'}</span>
+      <span class="hist-mode ${m.cls}">${m.short}</span>
       <span class="hist-time">${esc(e.time)}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 renderHistory();
+updateActionState();
 </script>
 </body>
 </html>

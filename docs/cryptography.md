@@ -76,9 +76,22 @@ IV         = Raw[:16]
 Ciphertext = Raw[16:]
 Padded     = AES-CBC-Decrypt(Key, IV, Ciphertext)
 Plaintext  = PKCS7_Unpad(Padded)
+Gueltig    = HMAC-SHA256(Key, Plaintext)[:16] == IV
 ```
 
-Fehlgeschlagene Entschluesselung (falscher Secret, kein gueltiger Token) gibt den Originalwert unveraendert zurueck — kein Fehler, kein Datenverlust.
+**Pruefung:** Der IV im Token ist ein Pruefwert. Nach dem Entschluesseln berechnen beide Implementierungen den IV aus dem Klartext neu und vergleichen ihn mit dem IV im Token. Stimmt er nicht, gilt der Wert als "kein Pseudonym fuer dieses Secret". Die Pruefung ist exakt und braucht keine Aenderung am Format: Sie gilt auch fuer alle Tokens aelterer Versionen.
+
+Ohne diese Pruefung liefert AES-CBC mit einem falschen Schluessel in etwa 1 von 256 Faellen ein formal gueltiges Padding und damit Zeichensalat statt eines Fehlers.
+
+Ein Wert, der kein gueltiges Pseudonym ist (Klartext, beschaedigter Token, falsches Secret), bleibt unveraendert. Die Werkzeuge zaehlen diese Zellen und melden sie. Laesst sich in einer Datei kein einziger Wert entschluesseln, entsteht keine Ausgabedatei (falsches Secret).
+
+
+## Was verschluesselt wird
+
+- **Leerraum am Zellrand** gehoert nicht zum Klartext. Aus ` Max ` wird ` <Token von "Max"> `. So bekommt derselbe Name immer dasselbe Pseudonym, und der Roundtrip bleibt byte-identisch.
+- **Leere Zellen** bleiben leer.
+- **Excel-Zellen** werden in ihrer Textform verschluesselt: die Zahl `1234567` als `1234567`, ein ganzzahliger Gleitkommawert ohne `.0`, ein Datum als `2000-01-31 00:00:00`, eine reine Uhrzeit als `12:30:00`. Beide Implementierungen bilden diese Textform gleich.
+- **Name-Spalte:** Besteht der Wert einer Zeile aus Familienname und Vorname, ist das Ergebnis `<Token> <Token>` in der urspruenglichen Reihenfolge. Sonst ist der ganze Wert ein Token.
 
 
 ## Implementierungen
@@ -96,8 +109,8 @@ Verwendet die `cryptography`-Bibliothek:
 Verwendet die Web Crypto API:
 - `crypto.subtle.importKey()` + `crypto.subtle.deriveBits()` fuer PBKDF2
 - `crypto.subtle.sign()` fuer HMAC
-- `crypto.subtle.encrypt()` / `decrypt()` fuer AES-CBC
-- Manuelles PKCS7-Padding (Web Crypto fuegt eigenes Padding hinzu)
+- `crypto.subtle.encrypt()` / `decrypt()` fuer AES-CBC. Web Crypto fuegt das PKCS7-Padding selbst hinzu und entfernt es
+- Die Schluessel werden einmal je Lauf importiert (`createCipher()`), nicht je Zelle
 
 Beide Implementierungen erzeugen **identische Ausgaben** fuer gleiche Eingaben.
 
@@ -113,7 +126,11 @@ print(encrypt_value(key, "Mueller"))
 # Erwartetes Ergebnis: a9hB-p5pLs7rcmnUUFNdDD2a2KN4R1bUd2LjIkYJXRc
 ```
 
-Die Browser-GUI muss fuer denselben Input und Secret denselben Token erzeugen.
+Die Browser-GUI muss fuer denselben Input und Secret denselben Token erzeugen. Beides pruefen die automatischen Tests: `tests/test_core.py` (Python) und `tests/test_gui_parity.py` (JavaScript-Teil der GUI in Node, siehe [Entwicklung](development.md#testen)). In der Browser-Konsole geht es von Hand:
+
+```js
+createCipher("testSecret123").then(c => c.encrypt("Mueller")).then(console.log)
+```
 
 
 ## Sicherheitshinweise

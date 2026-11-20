@@ -1,8 +1,8 @@
 # pseudonymizer
 
-AES-256-CBC Pseudonymisierung fuer CSV-, TSV-, XLSX- und XLSM-Dateien.
+AES-256-CBC Pseudonymisierung und Anonymisierung fuer CSV-, TSV-, XLSX- und XLSM-Dateien.
 
-Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) durch verschluesselte Pseudonyme. Gleicher Secret = gleiche Pseudonyme, umkehrbar mit demselben Secret.
+Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Nummer, Geburtsdatum, Telefon, Valuatic Examiner/Candidate) durch verschluesselte Pseudonyme. Gleicher Secret = gleiche Pseudonyme, umkehrbar mit demselben Secret. Ein dritter Modus leert die Spalten endgueltig (Anonymisieren).
 
 > **Detaillierte Dokumentation:** [docs/index.md](docs/index.md) | **Schritt-fuer-Schritt-Anleitung:** [ANLEITUNG_pseudonym.md](ANLEITUNG_pseudonym.md)
 
@@ -13,13 +13,14 @@ Ersetzt personenbezogene Spalten (Name, Matrikelnummer, E-Mail, Pruefer, SV-Numm
 | Datei | `pseudonym_gui.html` | `pseudonym.py` |
 | Benoetigt | Nur einen Browser | Python 3.8+ |
 | Start | Doppelklick auf HTML | `python pseudonym.py ...` |
-| Formate | CSV, TSV, XLSX, XLSM | CSV, TSV, TXT, XLSX, XLSM |
-| Batch-Modus | Multi-Select, Drag & Drop, ZIP | Mehrere Dateien, ZIP, `--output-dir`, `--zip` |
+| Formate | CSV, TSV, TXT, XLSX, XLSM, ZIP | CSV, TSV, TXT, XLSX, XLSM, ZIP |
+| Batch-Modus | Multi-Select, Drag & Drop, ZIP | Mehrere Dateien, Ordner, Platzhalter, ZIP, `--output-dir`, `--zip` |
+| Anonymisieren | Schaltflaeche "Anonymisieren" | `python pseudonym.py anonymize ...` |
 | Eigene Spalten | Spaltenueberschriften anklicken | `--extra-cols "Spalte1,Spalte2"` |
 
-Beide Varianten sind **kryptografisch kompatibel** — eine mit Python verschluesselte Datei kann in der GUI entschluesselt werden und umgekehrt.
+Beide Varianten sind **kryptografisch kompatibel** — eine mit Python verschluesselte Datei kann in der GUI entschluesselt werden und umgekehrt. CSV-Ausgaben sind byte-gleich. Automatische Tests vergleichen beide Varianten.
 
-> **XLSM-Hinweis:** Die Python CLI verarbeitet `.xlsm`-Dateien (Macro-aktivierte Excel-Arbeitsmappen) und behaelt Makros und Formatierung (`keep_vba=True`) bei. Die Browser-GUI verarbeitet `.xlsm`-Dateien ebenfalls, verwirft dabei jedoch Makros und Formatierung (identisches Verhalten wie bei `.xlsx`).
+> **Excel-Hinweis:** Die Python CLI erhaelt in `.xlsx`- und `.xlsm`-Dateien die Formatierung und bei `.xlsm` die Makros (`keep_vba=True`). Die Browser-GUI erhaelt Werte, Zahlenformate, Formeln und Spaltenbreiten, verwirft aber Farben, Schriften, Rahmen und Makros.
 
 ## Schnellstart
 
@@ -34,13 +35,20 @@ Mehr dazu: [Browser-GUI Anleitung](docs/usage-gui.md)
 ```bash
 pip install cryptography openpyxl
 
-# Verschluesseln
-python pseudonym.py encrypt datei.csv --secret "MeinSecret"
-python pseudonym.py encrypt datei.xlsx --secret "MeinSecret"
+# Verschluesseln (das Programm fragt verdeckt nach dem Secret)
+python pseudonym.py encrypt datei.csv
+python pseudonym.py encrypt datei.xlsx
 
 # Entschluesseln
-python pseudonym.py decrypt datei_pseudo.csv --secret "MeinSecret"
+python pseudonym.py decrypt datei_pseudo.csv
+
+# Anonymisieren: Identitaetsspalten endgueltig leeren (kein Secret)
+python pseudonym.py anonymize datei.csv
 ```
+
+Fehlt ein Paket, nennt das Programm den passenden Installationsbefehl. `python pseudonym.py --version` prueft die Installation.
+
+Das Secret laesst sich auch mit `--secret "..."` oder der Umgebungsvariable `PSEUDONYM_SECRET` uebergeben. Mit `--secret` steht es aber im Verlauf der Konsole. Die verdeckte Eingabe ist deshalb der empfohlene Weg.
 
 Mehr dazu: [CLI Referenz](docs/usage-cli.md)
 
@@ -54,17 +62,20 @@ Beide Varianten unterstuetzen die Verarbeitung mehrerer Dateien in einem Durchga
 
 ```bash
 # Mehrere Dateien
-python pseudonym.py encrypt datei1.csv datei2.xlsx --secret "MeinSecret"
+python pseudonym.py encrypt datei1.csv datei2.xlsx
 
-# ZIP als Eingabe
-python pseudonym.py encrypt archiv.zip --secret "MeinSecret"
+# Ganzer Ordner oder ZIP als Eingabe
+python pseudonym.py encrypt exporte/
+python pseudonym.py encrypt archiv.zip
 
 # Ergebnis als ZIP buendeln
-python pseudonym.py encrypt *.csv --secret "MeinSecret" --zip
+python pseudonym.py encrypt "*.csv" --zip
 
-# Ausgabe in Verzeichnis
-python pseudonym.py encrypt *.csv --secret "MeinSecret" --output-dir ./encrypted/
+# Ausgabe in Verzeichnis (wird angelegt)
+python pseudonym.py encrypt "*.csv" --output-dir ./encrypted/
 ```
+
+Eine feste Obergrenze fuer die Zahl der Dateien gibt es nicht. Getestet sind 500 Dateien in einem Lauf, in der CLI und in der GUI. Ein Fehler in einer Datei bricht den Lauf nicht ab.
 
 Mehr dazu: [CLI Batch-Modus](docs/usage-cli.md#batch-modus) | [GUI Batch-Modus](docs/usage-gui.md#batch-modus)
 
@@ -77,39 +88,39 @@ Neben den automatisch erkannten Identitaetsspalten koennen **beliebig viele weit
 **Python CLI:**
 
 ```bash
-python pseudonym.py encrypt datei.csv --secret "MeinSecret" --extra-cols "Kommentar,Notiz,Bemerkung"
+python pseudonym.py encrypt datei.csv --extra-cols "Kommentar,Notiz,Bemerkung"
 ```
 
-Kommagetrennte Liste beliebiger Spaltennamen. Bereits automatisch erkannte Spalten werden nicht doppelt verschluesselt.
+Kommagetrennte Liste beliebiger Spaltennamen. Bereits automatisch erkannte Spalten werden nicht doppelt verschluesselt. Beim Entschluesseln dieselben Spalten wieder angeben.
 
 Mehr dazu: [CLI Referenz](docs/usage-cli.md#zusaetzliche-spalten) | [GUI Anleitung](docs/usage-gui.md#zusaetzliche-spalten) | [Schritt-fuer-Schritt](ANLEITUNG_pseudonym.md#zusaetzliche-spalten-verschluesseln)
 
 ## Erkannte Spalten
 
-Das Tool erkennt automatisch verschiedene Schreibweisen (case-insensitive):
+Das Tool erkennt automatisch diese Spaltennamen. Gross-/Kleinschreibung spielt keine Rolle (`FAMILIENNAME`, `Familienname` und `familienname` sind gleich). Alle passenden Spalten werden verarbeitet, auch mehrere je Typ (z.B. `Telefon` und `Handy`):
 
 | Spaltentyp | Erkannte Spaltennamen |
 |---|---|
-| **Familienname** | FAMILIENNAME, Zuname, Nachname, Surname, Family Name, FAMILY_NAME_OF_STUDENT, Last Name, LastName, Familienname oder Nachname, Familien- oder Nachname |
-| **Vorname** | VORNAME, FirstName, FIRST_NAME_OF_STUDENT, First Name, Given Name, GivenName, Rufname |
-| **Matrikelnummer** | MATRIKELNUMMER, Matnr, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., REGISTRATION_NUMBER, StudentID, Student ID, Matrikel, Kennnummer |
-| **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, E-Mail Adresse, Emailadresse, Mailadresse, Attendee Email |
-| **Pruefer** | Examiner, Pruefer, Pruefer, Pruefer/in, PrueferIn, Pruefer:in |
+| **Familienname** | Familienname, Zuname, Nachname, Last Name, LastName, Surname, Family Name, Family_Name, FAMILY_NAME_OF_STUDENT, Familienname oder Nachname, Familien- oder Nachname |
+| **Vorname** | Vorname, First Name, FirstName, Given Name, GivenName, Rufname, FIRST_NAME_OF_STUDENT |
+| **Matrikelnummer** | Matrikelnummer, Matnr, MatrNr, Matrikel, Matrikelnr, Matrikelnr., Mat.Nr., Mat.Nr, Mat-Nr., Mat-Nr, Mat. Nr., StudentID, Student_ID, Student ID, REGISTRATION_NUMBER, Registration Number, ID number, ID-Nummer, Kennnummer |
+| **E-Mail** | EMAIL_ADDRESS, E-Mail, Email, Mail, E_MAIL, EmailAddress, E-Mail-Adresse, E-Mail Adresse, Emailadresse, Mailadresse, Email address, E-Mail des Teilnehmers, Attendee Email |
+| **Pruefer/Examiner** | Examiner, Prüfer, Pruefer, Prufer, Prüfer/in, PrüferIn, Prüfer:in |
 | **Anzeigename** | Anzeigename, Display Name, DisplayName, Full Name, FullName, Student Name |
-| **SV-Nummer** | Sozialversicherungsnummer, SVNr, SVNR, SV-Nr, SV-Nr., SV-Nummer, Versicherungsnummer, SSN |
-| **Geburtsdatum** | Geburtsdatum, Geburtstag, Geb.Datum, Geb.-Datum, Birthday, Date of Birth, DOB, Birth Date |
-| **Telefon** | Telefon, Telefonnummer, Tel, Tel., Phone, Phone Number, Handy, Handynummer, Mobilnummer, Mobile, Cell Phone |
-| **Name** *(optional)* | NAME — Composite aus Familienname + Vorname; andernfalls wird der ganze Wert als ein Token verschluesselt |
-| **Examiner ID** *(Valuatic)* | examiner_id, Examiner_ID, EXAMINER_ID |
-| **Examiner Nachname** *(Valuatic)* | examiner_last_name, Examiner_Last_Name, EXAMINER_LAST_NAME |
-| **Examiner Vorname** *(Valuatic)* | examiner_first_name, Examiner_First_Name, EXAMINER_FIRST_NAME |
-| **Candidate ID** *(Valuatic)* | candidate_id, Candidate_ID, CANDIDATE_ID |
-| **Candidate Nachname** *(Valuatic)* | candidate_last_name, Candidate_Last_Name, CANDIDATE_LAST_NAME |
-| **Candidate Vorname** *(Valuatic)* | candidate_first_name, Candidate_First_Name, CANDIDATE_FIRST_NAME |
+| **SV-Nummer** | Sozialversicherungsnummer, SVNr, SV-Nr, SV-Nr., SV-Nummer, SV Nummer, Versicherungsnummer, Social Security Number, SSN |
+| **Geburtsdatum** | Geburtsdatum, Geburtstag, Geb.Datum, Geb.-Datum, GebDatum, Geb. Datum, Birthday, Date of Birth, DateOfBirth, DOB, Birth Date, BirthDate |
+| **Telefon** | Telefon, Telefonnummer, Tel, Tel., Tel.Nr., TelNr, Phone, Phone Number, PhoneNumber, Handy, Handynummer, Mobilnummer, Mobile, Mobiltelefon, Cell, Cell Phone |
+| **Name** | Name — je Zeile aus Familienname + Vorname zusammengesetzt; sonst wird der ganze Wert als ein Token verschluesselt |
+| **Examiner ID (Valuatic)** | examiner_id |
+| **Examiner Nachname (Valuatic)** | examiner_last_name |
+| **Examiner Vorname (Valuatic)** | examiner_first_name |
+| **Candidate ID (Valuatic)** | candidate_id |
+| **Candidate Nachname (Valuatic)** | candidate_last_name |
+| **Candidate Vorname (Valuatic)** | candidate_first_name |
 
 Die Valuatic-Spalten verwenden eigene Schluessel, da Pruefer- und Kandidatendaten in derselben Datei vorkommen und unabhaengig verschluesselt werden muessen.
 
-**Suffix-Stripping:** Suffixe wie `.x`, `.y`, `.1`, `.2` (aus R-Merge-Operationen) werden vor dem Abgleich automatisch entfernt. Z.B. wird `Vorname.x` als `Vorname` erkannt.
+**Suffix-Stripping:** Eine Endung nach dem letzten Punkt (`.x`, `.y`, `.1`, `.2` aus R-Merge-Operationen) wird vor dem Abgleich entfernt. Z.B. wird `Vorname.x` als `Vorname` erkannt und `Name.y` als `Name`.
 
 Vollstaendige Liste: [Spalten-Referenz](docs/column-reference.md)
 
@@ -117,8 +128,11 @@ Vollstaendige Liste: [Spalten-Referenz](docs/column-reference.md)
 
 - **AES-256-CBC** mit PBKDF2-Schluesselableitung (100.000 Iterationen)
 - **Deterministisch:** gleicher Input + gleicher Secret = gleiches Pseudonym
-- **Lokal:** alle Verarbeitung geschieht auf dem eigenen Rechner
+- **Lokal:** alle Verarbeitung geschieht auf dem eigenen Rechner. Die Browser-GUI kann technisch keine Daten senden (Content Security Policy) und laedt ihre zwei Bibliotheken nur mit passender Pruefsumme
 - **Secret sicher aufbewahren** — ohne Secret keine Wiederherstellung moeglich
+- **Falsches Secret wird erkannt:** Laesst sich kein Wert entschluesseln, entsteht keine Ausgabedatei
+- **Keine erkannte Spalte, keine Ausgabe:** Eine Datei ohne erkannte Spalten wird nicht unveraendert als `_pseudo` ausgegeben
+- **Anonymisieren ist keine Garantie:** Das Tool leert nur erkannte Spalten. Die uebrigen Spalten koennen Personen weiter erkennbar machen
 
 Details: [Kryptographie-Spezifikation](docs/cryptography.md)
 

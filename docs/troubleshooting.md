@@ -2,33 +2,57 @@
 
 ## Haeufige Probleme
 
-### "Keine Identitaetsspalten gefunden"
+### "Keine Spalten mit Personendaten erkannt"
 
-**Symptom:** Das Tool meldet, dass keine Identitaetsspalten erkannt wurden.
+**Symptom:** Das Tool schreibt keine Datei und nennt die vorhandenen Spaltennamen.
 
 **Ursachen und Loesungen:**
 
-1. **Spaltennamen stimmen nicht ueberein:** Pruefen Sie, ob Ihre Spaltennamen in der [Spalten-Referenz](column-reference.md) aufgefuehrt sind. Die Erkennung ist case-insensitive, aber der Name muss exakt einem Alias entsprechen.
+1. **Spaltenname ist nicht bekannt:** Pruefen Sie, ob Ihre Spaltennamen in der [Spalten-Referenz](column-reference.md) stehen. Gross-/Kleinschreibung spielt keine Rolle, aber der Name muss einem Alias entsprechen. Andere Spalten geben Sie mit `--extra-cols "Spalte1,Spalte2"` an. In der GUI klicken Sie auf die Spaltenueberschrift.
 
-2. **Falsches CSV-Trennzeichen:** Falls die CSV-Datei Semikolons statt Kommas verwendet, wird die gesamte Zeile als eine Spalte gelesen. Loesung:
+2. **Falsches CSV-Trennzeichen:** Das Tool erkennt Semikolon, Komma und Tab automatisch. Zeigt die Meldung alle Spaltennamen als einen einzigen langen Namen, hat die Datei ein anderes Trennzeichen. Loesung:
    ```bash
-   python pseudonym.py encrypt datei.csv --secret "..." --sep ";"
+   python pseudonym.py encrypt datei.csv --sep "|"
    ```
 
-3. **Kodierung:** Erkannt werden UTF-8 (mit/ohne BOM), UTF-16 (mit BOM, z.B. Webex) und Windows-1252/ANSI (z.B. MedCampus- und Excel-CSV-Exporte). Die Original-Kodierung bleibt in der Ausgabe erhalten. Ausnahme: Enthaelt die Eingabe nur ASCII-Zeichen (etwa eine Pseudonym-Datei, deren Umlaute alle verschluesselt waren), wird die wiederhergestellte Datei als UTF-8 mit BOM geschrieben, damit Excel die Umlaute korrekt anzeigt.
+3. **Kodierung:** Erkannt werden UTF-8 (mit/ohne BOM), UTF-16 (mit/ohne BOM, z.B. Webex) und Windows-1252/ANSI (z.B. MedCampus- und Excel-CSV-Exporte).
 
 
-### Entschluesselung liefert unleserliche Zeichen
+### Eine Spalte mit Personendaten bleibt im Klartext
 
-**Symptom:** Nach der Entschluesselung stehen immer noch Base64-Strings in den Zellen.
+**Moegliche Ursachen:**
 
-**Ursache:** Der Secret stimmt nicht exakt ueberein. Pruefen Sie:
+1. **Der Spaltenname ist nicht bekannt.** Das Tool verarbeitet nur erkannte Spalten. Pruefen Sie die Ausgabe: Die Zeile "Spalten:" nennt alle verarbeiteten Spalten. In der GUI sind sie in der Vorschau blau.
+2. **Eine Zeile hat mehr Zellen als die Kopfzeile.** Das passiert, wenn ein Wert das Trennzeichen enthaelt und nicht in Anfuehrungszeichen steht. Die Werte dieser Zeile stehen dann in falschen Spalten. Das Tool warnt: "... Zeile(n) haben mehr Zellen als die Kopfzeile". Bitte die Datei korrigieren.
+3. **Der Name steht vor der Kopfzeile.** Zeilen vor der Kopfzeile bleiben immer unveraendert.
+
+
+### "Kein Wert konnte entschluesselt werden"
+
+**Symptom:** Beim Entschluesseln schreibt das Tool keine Datei.
+
+**Ursache:** Das Secret stimmt nicht, oder die Datei ist nicht pseudonymisiert. Pruefen Sie:
 
 - Leerzeichen am Anfang oder Ende des Secrets
 - Gross-/Kleinschreibung
-- Sonderzeichen (besonders in der Shell: Anfuehrungszeichen verwenden)
+- Sonderzeichen. Bei der verdeckten Eingabe gibt es damit keine Probleme. Bei `--secret` in der Shell Anfuehrungszeichen verwenden
+- Zusatzspalten: Beim Entschluesseln muessen dieselben Spalten angegeben sein wie beim Verschluesseln
 
-**Hinweis:** Das Tool gibt bei falschem Secret keinen Fehler aus — es gibt den Token stattdessen unveraendert zurueck. Dies ist beabsichtigt, um Datenverlust zu vermeiden.
+Das Tool erkennt ein falsches Secret sicher, weil jedes Pseudonym einen Pruefwert enthaelt.
+
+
+### "... Zelle(n) enthalten kein gueltiges Pseudonym"
+
+**Symptom:** Warnung beim Entschluesseln. Die Datei wird geschrieben.
+
+**Ursache:** Einige Zellen der Identitaetsspalten sind kein Pseudonym dieses Secrets, zum Beispiel nachgetragene Klartextzeilen. Diese Zellen bleiben unveraendert.
+
+
+### "... Zelle(n) waren bereits mit diesem Secret pseudonymisiert"
+
+**Symptom:** Warnung beim Verschluesseln.
+
+**Ursache:** Die Datei ist schon pseudonymisiert und wurde ein zweites Mal verschluesselt. Zweimal entschluesseln stellt das Original wieder her. Bei Ordnern und Platzhaltern ueberspringt die CLI Dateien mit dem Zusatz `_pseudo` von selbst.
 
 
 ### CSV-Datei sieht nach Roundtrip anders aus
@@ -37,87 +61,105 @@
 
 **Moegliche Ursachen:**
 
-1. **Anderes Trennzeichen:** Beim Encrypt und Decrypt das gleiche `--sep` verwenden.
-2. **Leerzeichen in Werten:** Fuehrende/nachfolgende Leerzeichen in Identitaetsspalten werden beim Encrypt getrimmt.
-3. **Leere Werte:** Leere Zellen werden nicht verschluesselt und bleiben leer.
+1. **UTF-8 mit BOM statt der urspruenglichen Kodierung:** Bestand die Pseudonym-Datei nur aus ASCII-Zeichen (alle Umlaute standen in verschluesselten Spalten), ist die urspruengliche Kodierung nicht mehr erkennbar. Die zurueckgefuehrte Datei ist dann UTF-8 mit BOM, damit Excel die Umlaute richtig zeigt. Der Text ist gleich. Das Tool meldet den Fall ("Ausgabe als UTF-8 mit BOM"). Ein Byte-Vergleich mit `fc /b` oder `cmp` listet dann fast jede Stelle auf, weil die drei Bytes am Anfang (`EF BB BF`) alles verschieben.
+2. **Zeichen passt nicht in die Kodierung:** Das Tool warnt und schreibt UTF-8 mit BOM.
+3. **Anderes Trennzeichen oder andere Zusatzspalten** beim Entschluesseln als beim Verschluesseln.
+
+Leerzeichen am Zellrand und gemischte Anfuehrungszeichen bleiben erhalten.
 
 
-### XLSX-Datei kann nicht geoeffnet werden
+### Excel: Zahlen sind nach dem Zurueckfuehren Text
 
-**Symptom:** openpyxl wirft einen Fehler beim Oeffnen der XLSX-Datei.
-
-**Loesung:** Das Tool repariert automatisch fehlerhafte Drawing-Referenzen. Falls der Fehler dennoch auftritt:
-
-1. Datei in Excel oeffnen und neu speichern
-2. Erneut versuchen
-
-Falls die Datei kennwortgeschuetzt ist: Der pseudonymizer kann keine verschluesselten XLSX-Dateien oeffnen. Entfernen Sie den Kennwortschutz in Excel vor der Verarbeitung.
+**Ursache:** Ein Pseudonym ist Text. Beim Zurueckfuehren kennt das Tool den urspruenglichen Zelltyp nicht mehr. Betroffen sind nur die Identitaetsspalten (z.B. eine Matrikelnummer, die als Zahl gespeichert war). Alle anderen Spalten behalten Typ und Format.
 
 
-### Browser-GUI zeigt keine Vorschau
+### Excel: Gleiche Matrikelnummer, anderes Pseudonym als in der CSV-Datei
 
-**Symptom:** Die Datei wird geladen, aber keine Tabelle angezeigt.
+**Ursache:** In der Excel-Datei ist die Matrikelnummer eine Zahl (`1234567`), die nur durch ein Zahlenformat mit fuehrender Null erscheint. In der CSV-Datei steht der Text `01234567`. Das Tool verschluesselt den gespeicherten Wert.
 
-**Moegliche Ursachen:**
-
-1. **CDN-Bibliotheken nicht geladen:** Internetverbindung pruefen (beim ersten Start noetig)
-2. **Browser zu alt:** Einen aktuellen Chrome, Firefox, Edge oder Safari verwenden
-3. **Grosse Datei:** Bei sehr grossen Dateien kann das Laden einige Sekunden dauern
+**Loesung:** Die Spalte in Excel als Text fuehren, oder beide Dateien aus derselben Quelle im selben Format exportieren.
 
 
-### Browser-GUI: Fortschrittsbalken haengt
+### Excel-Datei kann nicht gelesen werden
 
-**Symptom:** Der Fortschrittsbalken bleibt bei einem bestimmten Prozentsatz stehen.
+**Symptom:** "Die Datei ist keine lesbare Excel-Datei (.xlsx/.xlsm)".
 
-**Loesung:** Bei grossen Dateien (> 10.000 Zeilen) kann die Verarbeitung im Browser laenger dauern. Abwarten oder fuer sehr grosse Dateien die Python CLI verwenden.
+**Ursachen und Loesungen:**
+
+1. **Kennwortschutz:** Den Kennwortschutz in Excel entfernen und neu speichern.
+2. **Altes Format `.xls`:** In Excel als `.xlsx` speichern.
+3. **Beschaedigte Datei:** In Excel oeffnen und neu speichern.
+
+Verweise auf fehlende Zeichnungen repariert die CLI selbst. Sie entfernt nur die defekten Verweise; vorhandene Diagramme und Bilder bleiben.
 
 
-### Batch: "--output nur bei einzelner Datei moeglich"
+### "Python-Paket 'cryptography' fehlt oder laesst sich nicht laden"
 
-**Symptom:** Fehlermeldung bei Verwendung von `--output` mit mehreren Dateien.
+**Symptom:** Das Tool verarbeitet nichts und nennt einen Befehl mit `-m pip install`.
 
-**Loesung:** `--output` / `-o` setzt einen einzelnen Ausgabepfad und funktioniert nur bei einer Datei. Fuer Batch-Verarbeitung stattdessen `--output-dir` verwenden:
+**Ursache:** Dem Python, das gerade laeuft, fehlt ein Paket. `cryptography` braucht das Tool zum Ver- und Entschluesseln, `openpyxl` fuer Excel-Dateien.
+
+**Loesung:** Den Befehl aus der Meldung kopieren und ausfuehren, danach den urspruenglichen Befehl wiederholen. Der Befehl nennt den vollen Pfad des laufenden Python. Das ist wichtig, wenn mehrere Python-Versionen installiert sind: Ein einfaches `pip install` kann die Pakete in eine andere Version legen. Unter Windows zeigt `py -0p` alle installierten Versionen; `py -3.10 pseudonym.py ...` startet eine bestimmte.
+
+
+### "Kein Zugriff auf ..."
+
+**Ursache:** Die Datei ist in Excel geoeffnet oder schreibgeschuetzt. Excel schliessen und erneut versuchen.
+
+
+### Browser-GUI: "Die Programmbibliotheken konnten nicht geladen werden"
+
+**Ursachen und Loesungen:**
+
+1. **Keine Internetverbindung:** Die Seite laedt beim Start zwei Bibliotheken aus dem Netz. Verbindung pruefen und die Seite neu laden.
+2. **Netzfilter:** Die Adressen `cdn.sheetjs.com` und `cdnjs.cloudflare.com` muessen erreichbar sein.
+3. **Pruefsumme stimmt nicht:** Der Browser laedt eine Bibliothek nur, wenn sie unveraendert ist. In diesem Fall die Seite nicht verwenden und die Python CLI nutzen.
+
+
+### Browser-GUI: Datei erscheint nicht in der Liste
+
+**Ursache:** Die Datei liess sich nicht lesen. Der Grund steht im roten Kasten "Nicht geladen" unter der Dateiliste (z.B. Format `.xls`, Kennwortschutz, beschaedigtes ZIP). Aus ZIP-Archiven uebernimmt die Seite nur `.csv`, `.tsv`, `.xlsx` und `.xlsm`.
+
+
+### Browser-GUI: Verarbeitung dauert lange
+
+**Loesung:** Die Dauer haengt von der Zahl der Zellen ab. 500 Dateien mit zusammen rund 500.000 Zellen brauchen in Chromium etwa 10 Sekunden. Ist das Browserfenster im Hintergrund, bremst der Browser die Seite; das Fenster im Vordergrund lassen. Fuer einzelne sehr grosse Excel-Dateien die Python CLI verwenden.
+
+
+### Batch: "--output ist nur bei einer einzelnen Datei moeglich"
+
+**Loesung:** `--output` / `-o` setzt einen einzelnen Ausgabepfad. Das gilt auch fuer ein ZIP mit mehreren Dateien. Stattdessen `--output-dir` verwenden:
 
 ```bash
-python pseudonym.py encrypt *.csv --secret "..." --output-dir ./output/
+python pseudonym.py encrypt exporte/ --output-dir ./output/
 ```
 
 
 ### Batch: "Keine verarbeitbaren Dateien gefunden"
 
-**Symptom:** ZIP-Datei wird als Eingabe akzeptiert, aber es werden keine Dateien verarbeitet.
-
-**Ursache:** Das ZIP-Archiv enthaelt keine CSV-, XLSX- oder XLSM-Dateien. Nur `.csv`, `.tsv`, `.xlsx` und `.xlsm` werden aus ZIP-Archiven extrahiert (`.txt` wird in ZIPs uebersprungen, da es oft README-Dateien sind).
-
-
-### Browser-GUI: ZIP-Upload funktioniert nicht
-
-**Symptom:** ZIP-Datei wird hochgeladen, aber keine Dateien erscheinen in der Liste.
-
-**Moegliche Ursachen:**
-
-1. **ZIP-Datei ist beschaedigt:** Archiv pruefen (z.B. mit `unzip -t archiv.zip`)
-2. **Keine CSV/XLSX/XLSM im Archiv:** Nur `.csv`, `.tsv`, `.txt`, `.xlsx` und `.xlsm` Dateien werden extrahiert
-3. **JSZip nicht geladen:** Internetverbindung pruefen (JSZip wird wie PapaParse und SheetJS via CDN geladen)
+**Ursache:** Der Ordner oder das ZIP-Archiv enthaelt keine `.csv`, `.tsv`, `.xlsx` oder `.xlsm`. `.txt` zaehlt in Ordnern und ZIP-Archiven nicht mit, weil es oft Hinweisdateien sind. Eine `.txt` mit Daten nennen Sie direkt als Eingabe. Uebersprungene Dateien nennt das Tool mit Grund ("Uebersprungen: ...").
 
 
 ## Fehlermeldungen
 
 | Meldung | Bedeutung | Loesung |
 |---|---|---|
-| `FEHLER: Datei nicht gefunden` | Dateipfad existiert nicht | Pfad pruefen |
-| `FEHLER: Konnte keine Spalten erkennen` | CSV-Datei ist leer oder fehlerhaft | Datei pruefen |
-| `FEHLER: Keine Identitaetsspalten gefunden` | Spaltennamen nicht erkannt | Siehe oben |
-| `FEHLER: Unbekanntes Dateiformat` | Dateiendung nicht `.csv`, `.tsv`, `.txt`, `.xlsx` oder `.xlsm` | Datei umbenennen oder konvertieren |
-| `FEHLER: --output nur bei einzelner Datei` | `--output` mit mehreren Dateien | `--output-dir` verwenden |
-| `FEHLER: Keine verarbeitbaren Dateien` | ZIP enthaelt keine CSV/XLSX/XLSM | ZIP-Inhalt pruefen |
-| `HINWEIS: Repariere fehlende Drawing-Referenzen` | XLSX hat fehlerhafte Referenzen | Kein Handlungsbedarf, automatisch repariert |
+| `FEHLER: Datei nicht gefunden: ...` | Pfad oder Platzhalter trifft keine Datei | Pfad pruefen |
+| `Die Datei ist leer.` | Die CSV-Datei hat keinen Inhalt | Datei pruefen |
+| `Keine Spalten mit Personendaten erkannt.` | Kein Spaltenname bekannt | Siehe oben |
+| `Kein Wert konnte entschluesselt werden.` | Falsches Secret oder Datei nicht pseudonymisiert | Siehe oben |
+| `Die Datei ist keine lesbare Excel-Datei` | Kennwortschutz, `.xls` oder beschaedigt | In Excel ohne Kennwort als `.xlsx` speichern |
+| `Python-Paket '...' fehlt oder laesst sich nicht laden` | Dem laufenden Python fehlt `cryptography` oder `openpyxl` | Befehl aus der Meldung ausfuehren |
+| `Unbekanntes Dateiformat` | Endung nicht `.csv`, `.tsv`, `.txt`, `.xlsx` oder `.xlsm` | Datei konvertieren |
+| `--output ist nur bei einer einzelnen Datei moeglich` | `--output` mit mehreren Dateien | `--output-dir` verwenden |
+| `Die beiden Eingaben stimmen nicht ueberein.` | Tippfehler bei der Wiederholung des Secrets | Erneut starten |
+| `HINWEIS: Verweise auf fehlende Zeichnungen werden entfernt.` | Excel-Datei hat defekte Verweise | Kein Handlungsbedarf |
 
 
 ## Hilfe erhalten
 
 Falls Ihr Problem hier nicht gelistet ist:
 
-1. Pruefen Sie die Konsolenausgabe des Tools auf Hinweise
+1. Pruefen Sie die Konsolenausgabe bzw. das Protokoll der GUI auf Hinweise
 2. Stellen Sie sicher, dass alle [Voraussetzungen](installation.md) erfuellt sind
-3. Testen Sie mit einer kleinen Testdatei (wenige Zeilen)
+3. Testen Sie mit einer kleinen Testdatei (wenige Zeilen, erfundene Daten)
